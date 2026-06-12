@@ -23,20 +23,22 @@ flowchart LR
   Analytics --> MySQL
 ```
 
-Cada servicio mantiene `Domain`, `Application`, `Infrastructure` y `Api`. `Analytics` es read model sobre telemetria. En MySQL el MVP usa una base compartida (`tlalocai_platform`) con tablas prefijadas por servicio.
+Cada servicio mantiene `Domain`, `Application`, `Infrastructure` y `Api`. `Analytics` es read model sobre telemetria. En MySQL el MVP usa una base compartida (`tlalocai_databse`) con tablas prefijadas por servicio.
 
 ## Requisitos
 
 - .NET SDK 10.
 - Docker Desktop o Docker Engine con Compose.
-- MySQL local solo si no usas Docker.
+- MySQL disponible en `localhost:3306` con la base `tlalocai_databse`.
 
 ## Ejecutar Localmente
 
 ```bash
 cp .env.example .env
-docker compose up --build
+bash scripts/run-local.sh
 ```
+
+El `docker compose` de este repo no crea otra base; usa la instancia MySQL que ya corre en tu host mediante `host.docker.internal`.
 
 Puertos:
 
@@ -49,9 +51,11 @@ Puertos:
 
 Swagger esta habilitado solo en `Development`, por ejemplo `http://localhost:5101/swagger`.
 
+`scripts/run-local.sh` construye las imagenes en secuencia para evitar que Docker mate el `publish` de .NET por memoria cuando se intentan compilar todos los microservicios al mismo tiempo.
+
 ## Base de Datos y Migraciones
 
-MySQL se crea con Docker Compose. Para aplicar migraciones:
+Las migraciones se aplican sobre `localhost:3306/tlalocai_databse`. Para aplicarlas:
 
 ```bash
 dotnet tool restore

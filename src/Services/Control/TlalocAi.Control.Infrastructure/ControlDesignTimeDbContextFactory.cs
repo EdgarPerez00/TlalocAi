@@ -5,10 +5,12 @@ namespace TlalocAi.Control.Infrastructure;
 
 public sealed class ControlDesignTimeDbContextFactory : IDesignTimeDbContextFactory<ControlDbContext>
 {
+    private const string DefaultConnection = "server=localhost;port=3306;database=tlalocai_databse;user=tlalocai;password=TlalocaiApp123!";
+
     public ControlDbContext CreateDbContext(string[] args)
     {
         var options = new DbContextOptionsBuilder<ControlDbContext>()
-            .UseMySQL("server=localhost;port=3306;database=tlalocai_platform;user=tlalocai;password=tlalocai_dev_password")
+            .UseMySQL(Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection") ?? DefaultConnection)
             .Options;
 
         return new ControlDbContext(options);
