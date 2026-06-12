@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\TlalocAi.Analytics.Domain\TlalocAi.Analytics.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\TlalocAi.SharedKernel\TlalocAi.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

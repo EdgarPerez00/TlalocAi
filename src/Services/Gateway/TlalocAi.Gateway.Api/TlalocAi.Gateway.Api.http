@@ -1,0 +1,6 @@
+@TlalocAi.Gateway.Api_HostAddress = http://localhost:5228
+
+GET {{TlalocAi.Gateway.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

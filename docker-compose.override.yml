@@ -1,0 +1,19 @@
+services:
+  tlalocai-gateway-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+  tlalocai-identity-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+  tlalocai-devices-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+  tlalocai-telemetry-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+  tlalocai-control-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+  tlalocai-analytics-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development

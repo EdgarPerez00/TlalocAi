@@ -1,0 +1,115 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: tlalocai-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-tlalocai_root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-tlalocai_platform}
+      MYSQL_USER: ${MYSQL_USER:-tlalocai}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-tlalocai_dev_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  tlalocai-identity-api:
+    build:
+      context: .
+      dockerfile: src/Services/Identity/TlalocAi.Identity.Api/Dockerfile
+    environment: &api-env
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: ${ConnectionStrings__DefaultConnection:-server=mysql;port=3306;database=tlalocai_platform;user=tlalocai;password=tlalocai_dev_password}
+      Jwt__Issuer: ${Jwt__Issuer:-TlalocAi}
+      Jwt__Audience: ${Jwt__Audience:-TlalocAi.Frontend}
+      Jwt__SigningKey: ${Jwt__SigningKey:-change-this-development-signing-key-minimum-32-chars}
+      DeviceAuth__ApiKeyHeaderName: ${DeviceAuth__ApiKeyHeaderName:-X-Device-Api-Key}
+      Cors__AllowedOrigins__0: ${Cors__AllowedOrigins__0:-http://localhost:5173}
+      Cors__AllowedOrigins__1: ${Cors__AllowedOrigins__1:-http://localhost:3000}
+    ports:
+      - "5101:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  tlalocai-devices-api:
+    build:
+      context: .
+      dockerfile: src/Services/Devices/TlalocAi.Devices.Api/Dockerfile
+    environment: *api-env
+    ports:
+      - "5102:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  tlalocai-telemetry-api:
+    build:
+      context: .
+      dockerfile: src/Services/Telemetry/TlalocAi.Telemetry.Api/Dockerfile
+    environment: *api-env
+    ports:
+      - "5103:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  tlalocai-control-api:
+    build:
+      context: .
+      dockerfile: src/Services/Control/TlalocAi.Control.Api/Dockerfile
+    environment: *api-env
+    ports:
+      - "5104:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  tlalocai-analytics-api:
+    build:
+      context: .
+      dockerfile: src/Services/Analytics/TlalocAi.Analytics.Api/Dockerfile
+    environment: *api-env
+    ports:
+      - "5105:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  tlalocai-gateway-api:
+    build:
+      context: .
+      dockerfile: src/Services/Gateway/TlalocAi.Gateway.Api/Dockerfile
+    environment:
+      <<: *api-env
+      Services__Identity: http://tlalocai-identity-api:8080
+      Services__Devices: http://tlalocai-devices-api:8080
+      Services__Telemetry: http://tlalocai-telemetry-api:8080
+      Services__Control: http://tlalocai-control-api:8080
+      Services__Analytics: http://tlalocai-analytics-api:8080
+    ports:
+      - "5100:8080"
+    depends_on:
+      - tlalocai-identity-api
+      - tlalocai-devices-api
+      - tlalocai-telemetry-api
+      - tlalocai-control-api
+      - tlalocai-analytics-api
+
+  # phpmyadmin:
+  #   image: phpmyadmin:latest
+  #   ports:
+  #     - "8081:80"
+  #   environment:
+  #     PMA_HOST: mysql
+  #   depends_on:
+  #     mysql:
+  #       condition: service_healthy
+
+volumes:
+  mysql-data:
