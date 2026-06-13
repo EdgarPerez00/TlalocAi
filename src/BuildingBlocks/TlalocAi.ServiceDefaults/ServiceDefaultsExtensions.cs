@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Serilog;
+using System.Net;
 
 namespace TlalocAi.ServiceDefaults;
 
@@ -42,10 +43,21 @@ public static class ServiceDefaultsExtensions
                     origins = ["http://localhost:5173", "http://localhost:3000"];
                 }
 
-                policy.WithOrigins(origins)
-                    .AllowAnyHeader()
+                var allowPrivateNetworkOrigins =
+                    builder.Configuration.GetValue<bool?>("Cors:AllowPrivateNetworkOrigins")
+                    ?? builder.Environment.IsDevelopment();
+
+                policy.AllowAnyHeader()
                     .AllowAnyMethod()
                     .AllowCredentials();
+
+                if (allowPrivateNetworkOrigins)
+                {
+                    policy.SetIsOriginAllowed(origin => IsAllowedOrigin(origin, origins));
+                    return;
+                }
+
+                policy.WithOrigins(origins);
             });
         });
 
@@ -108,5 +120,82 @@ public static class ServiceDefaultsExtensions
         app.UseAuthorization();
         app.MapHealthChecks("/health", new HealthCheckOptions());
         return app;
+    }
+
+    private static bool IsAllowedOrigin(string? origin, IReadOnlyCollection<string> exactOrigins)
+    {
+        if (string.IsNullOrWhiteSpace(origin))
+        {
+            return false;
+        }
+
+        if (exactOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (uri.IsLoopback)
+        {
+            return true;
+        }
+
+        if (string.Equals(uri.Host, "host.docker.internal", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (IsLocalHostname(uri.Host))
+        {
+            return true;
+        }
+
+        if (!IPAddress.TryParse(uri.Host, out var ipAddress))
+        {
+            return false;
+        }
+
+        return IsPrivateNetwork(ipAddress);
+    }
+
+    private static bool IsPrivateNetwork(IPAddress ipAddress)
+    {
+        if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+        {
+            var ipv6Bytes = ipAddress.GetAddressBytes();
+            var isUniqueLocal = ipv6Bytes.Length > 0 && (ipv6Bytes[0] & 0xFE) == 0xFC;
+
+            return ipAddress.IsIPv6LinkLocal
+                || ipAddress.IsIPv6SiteLocal
+                || isUniqueLocal;
+        }
+
+        var bytes = ipAddress.GetAddressBytes();
+        return bytes[0] == 10
+            || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
+            || (bytes[0] == 192 && bytes[1] == 168);
+    }
+
+    private static bool IsLocalHostname(string host)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return false;
+        }
+
+        return !host.Contains('.')
+            || host.EndsWith(".local", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".lan", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".internal", StringComparison.OrdinalIgnoreCase);
     }
 }

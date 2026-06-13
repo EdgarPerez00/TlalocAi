@@ -11,10 +11,15 @@ services:
       Jwt__Audience: ${Jwt__Audience:-TlalocAi.Frontend}
       Jwt__SigningKey: ${Jwt__SigningKey:-change-this-development-signing-key-minimum-32-chars}
       DeviceAuth__ApiKeyHeaderName: ${DeviceAuth__ApiKeyHeaderName:-X-Device-Api-Key}
+      Cors__AllowPrivateNetworkOrigins: ${Cors__AllowPrivateNetworkOrigins:-true}
       Cors__AllowedOrigins__0: ${Cors__AllowedOrigins__0:-http://localhost:5173}
       Cors__AllowedOrigins__1: ${Cors__AllowedOrigins__1:-http://localhost:3000}
+      Cors__AllowedOrigins__2: ${Cors__AllowedOrigins__2:-http://localhost:5174}
+      Cors__AllowedOrigins__3: ${Cors__AllowedOrigins__3:-http://localhost:5175}
     ports:
       - "5101:8080"
+    networks:
+      - tlalocai-network
 
   tlalocai-devices-api:
     build:
@@ -23,6 +28,8 @@ services:
     environment: *api-env
     ports:
       - "5102:8080"
+    networks:
+      - tlalocai-network
 
   tlalocai-telemetry-api:
     build:
@@ -31,6 +38,8 @@ services:
     environment: *api-env
     ports:
       - "5103:8080"
+    networks:
+      - tlalocai-network
 
   tlalocai-control-api:
     build:
@@ -39,6 +48,8 @@ services:
     environment: *api-env
     ports:
       - "5104:8080"
+    networks:
+      - tlalocai-network
 
   tlalocai-analytics-api:
     build:
@@ -47,6 +58,8 @@ services:
     environment: *api-env
     ports:
       - "5105:8080"
+    networks:
+      - tlalocai-network
 
   tlalocai-gateway-api:
     build:
@@ -67,3 +80,32 @@ services:
       - tlalocai-telemetry-api
       - tlalocai-control-api
       - tlalocai-analytics-api
+    networks:
+      - tlalocai-network
+
+  tlalocai-web:
+    build:
+      context: ./src/Web/TlalocAi.Web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:5100
+        VITE_IDENTITY_API_BASE_URL: http://localhost:5101
+        VITE_DEVICES_API_BASE_URL: http://localhost:5102
+        VITE_TELEMETRY_API_BASE_URL: http://localhost:5103
+        VITE_CONTROL_API_BASE_URL: http://localhost:5104
+        VITE_ANALYTICS_API_BASE_URL: http://localhost:5105
+        VITE_USE_GATEWAY: "true"
+    container_name: tlalocai-web
+    ports:
+      - "5174:80"
+    environment:
+      VITE_API_BASE_URL: http://localhost:5100
+      VITE_USE_GATEWAY: "true"
+    depends_on:
+      - tlalocai-gateway-api
+    networks:
+      - tlalocai-network
+
+networks:
+  tlalocai-network:
+    name: tlalocai-network
