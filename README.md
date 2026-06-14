@@ -1,10 +1,10 @@
 # TlalocAi.Platform
 
-Backend de microservicios para un sistema de medicion de agua en un modelo a escala de una calle. La Raspberry Pi 2 ejecuta `TlalocAi.EdgeAgent`, lee sensores, controla bomba/electrovalvulas y se comunica con esta plataforma por HTTP.
+Plataforma de microservicios y frontend web para un sistema de medicion de agua en un modelo a escala de una calle. La Raspberry Pi 2 ejecuta `TlalocAi.EdgeAgent`, lee sensores, controla bomba/electrovalvulas y se comunica con esta plataforma por HTTP.
 
 ## Arquitectura
 
-La solucion usa .NET 10, ASP.NET Core Web API, Clean Architecture, EF Core, MySQL, Docker, Swagger, health checks, JWT para frontend y API Key para dispositivos.
+La solucion usa .NET 10, ASP.NET Core Web API, Clean Architecture, EF Core, MySQL, Docker, Swagger, health checks, JWT para frontend y API Key para dispositivos. El frontend `TlalocAi.Web` usa React, Vite, TypeScript, Bootstrap, React Router, Axios y Recharts.
 
 ```mermaid
 flowchart LR
@@ -28,6 +28,7 @@ Cada servicio mantiene `Domain`, `Application`, `Infrastructure` y `Api`. `Analy
 ## Requisitos
 
 - .NET SDK 10.
+- Node.js 20 y npm 10 para ejecutar el frontend fuera de Docker.
 - Docker Desktop o Docker Engine con Compose.
 - MySQL disponible en `localhost:3306` con la base `tlalocai_databse`.
 
@@ -48,10 +49,62 @@ Puertos:
 - Telemetry: `http://localhost:5103`
 - Control: `http://localhost:5104`
 - Analytics: `http://localhost:5105`
+- Frontend web: `http://localhost:5174`
 
 Swagger esta habilitado solo en `Development`, por ejemplo `http://localhost:5101/swagger`.
 
 `scripts/run-local.sh` construye las imagenes en secuencia para evitar que Docker mate el `publish` de .NET por memoria cuando se intentan compilar todos los microservicios al mismo tiempo.
+
+Para levantar todo con Docker Compose:
+
+```bash
+docker compose up -d --build
+```
+
+El frontend Docker sirve la SPA con Nginx y publica el puerto `5174`. Las llamadas del navegador usan rutas relativas `/api` y Nginx las proxya internamente al Gateway (`tlalocai-gateway-api:8080`), por lo que puedes compartir solo el puerto del frontend para pruebas con otras computadoras.
+
+## Frontend Web
+
+El proyecto esta en `src/Web/TlalocAi.Web`.
+
+Instalar dependencias:
+
+```bash
+cd src/Web/TlalocAi.Web
+npm install
+```
+
+Ejecutar en desarrollo:
+
+```bash
+npm run dev
+```
+
+El dev server queda en `http://localhost:5173`. Vite proxya `/api` hacia `VITE_DEV_PROXY_TARGET`, que por defecto es `http://127.0.0.1:5100`.
+
+Compilar y previsualizar:
+
+```bash
+npm run build
+npm run preview
+```
+
+Variables principales del frontend:
+
+- `VITE_API_BASE_URL`: vacio por defecto para usar `/api` en el mismo origen.
+- `VITE_USE_GATEWAY=true`: usa el Gateway para todos los modulos API.
+- `VITE_DEV_PROXY_TARGET=http://127.0.0.1:5100`: destino del proxy de Vite en desarrollo.
+
+Si `VITE_USE_GATEWAY=false`, los modulos pueden usar URLs especificas: `VITE_IDENTITY_API_BASE_URL`, `VITE_DEVICES_API_BASE_URL`, `VITE_TELEMETRY_API_BASE_URL`, `VITE_CONTROL_API_BASE_URL` y `VITE_ANALYTICS_API_BASE_URL`.
+
+Flujos principales del frontend:
+
+- Login y registro de usuario en `/login`.
+- Dashboard operativo en `/dashboard`.
+- Administracion de dispositivos en `/devices`.
+- Experimentos en `/experiments`.
+- Control de bomba y valvulas en `/control`.
+- Telemetria y estadisticas en `/telemetry` y `/analytics`.
 
 ## Base de Datos y Migraciones
 
@@ -185,8 +238,11 @@ Ver `.env.example`:
 - `Jwt__Audience`
 - `Jwt__SigningKey`
 - `DeviceAuth__ApiKeyHeaderName`
+- `Cors__AllowPrivateNetworkOrigins`
 - `Cors__AllowedOrigins__0`
 - `Cors__AllowedOrigins__1`
+- `Cors__AllowedOrigins__2`
+- `Cors__AllowedOrigins__3`
 
 ## Pruebas
 
