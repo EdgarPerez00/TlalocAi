@@ -30,3 +30,35 @@ export function cancelCommand(commandId: string): Promise<DeviceCommandDto> {
     url: `/api/commands/${commandId}/cancel`,
   })
 }
+
+export function openValve(deviceId: string, valveId: number): Promise<DeviceCommandDto> {
+  return request<DeviceCommandDto>('control', {
+    method: 'POST',
+    url: `/api/valves/${valveId}/open`,
+    data: { deviceId },
+  })
+}
+
+export function closeValve(deviceId: string, valveId: number): Promise<DeviceCommandDto> {
+  return request<DeviceCommandDto>('control', {
+    method: 'POST',
+    url: `/api/valves/${valveId}/close`,
+    data: { deviceId },
+  })
+}
+
+export function startPump(deviceId: string, pumpId: string): Promise<DeviceCommandDto> {
+  return request<DeviceCommandDto>('control', {
+    method: 'POST',
+    url: `/api/pumps/${pumpId}/start`,
+    data: { deviceId },
+  })
+}
+
+export function stopPump(deviceId: string, pumpId: string): Promise<DeviceCommandDto> {
+  return request<DeviceCommandDto>('control', {
+    method: 'POST',
+    url: `/api/pumps/${pumpId}/stop`,
+    data: { deviceId },
+  })
+}

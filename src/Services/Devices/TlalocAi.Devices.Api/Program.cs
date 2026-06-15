@@ -43,6 +43,31 @@ devices.MapPost("/{deviceId}/rotate-api-key", async Task<Results<Ok<RotateApiKey
     return result.IsSuccess ? TypedResults.Ok(result.Value!) : TypedResults.Problem(result.Error.Message, statusCode: StatusCodes.Status404NotFound);
 });
 
+devices.MapPost("/{deviceId}/heartbeat", async Task<Results<Ok<DeviceHeartbeatResponse>, ProblemHttpResult>> (
+    string deviceId,
+    DeviceHeartbeatRequest request,
+    HttpRequest httpRequest,
+    IDevicesService service,
+    IConfiguration configuration,
+    CancellationToken cancellationToken) =>
+{
+    var headerName = configuration["DeviceAuth:ApiKeyHeaderName"] ?? "X-Device-Api-Key";
+    var apiKey = httpRequest.Headers[headerName].FirstOrDefault();
+    if (string.IsNullOrWhiteSpace(apiKey))
+    {
+        return TypedResults.Problem("Device API key is required.", statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    var observedIp = httpRequest.Headers["X-Forwarded-For"].FirstOrDefault()?.Split(',')[0].Trim();
+    if (string.IsNullOrWhiteSpace(observedIp))
+    {
+        observedIp = httpRequest.HttpContext.Connection.RemoteIpAddress?.ToString();
+    }
+
+    var result = await service.RegisterHeartbeatAsync(deviceId, request, apiKey, observedIp, cancellationToken);
+    return result.IsSuccess ? TypedResults.Ok(result.Value!) : TypedResults.Problem(result.Error.Message, statusCode: StatusCodes.Status401Unauthorized);
+}).AllowAnonymous();
+
 devices.MapPost("/{deviceId}/sensors", async Task<Results<Created<SensorResponse>, ProblemHttpResult>> (
     string deviceId,
     CreateSensorRequest request,

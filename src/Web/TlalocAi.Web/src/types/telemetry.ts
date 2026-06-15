@@ -8,6 +8,59 @@ export interface ActuatorSnapshotDto {
   isOn: boolean
 }
 
+export interface ReservoirStateDto {
+  name: string
+  level: number
+  sensors: boolean[]
+  isCritical: boolean
+  hasInvalidReading: boolean
+  message?: string | null
+}
+
+export interface FlowStateDto {
+  litersPerMinute: number
+  totalLiters: number
+  pulses: number
+  noFlowAlert: boolean
+}
+
+export interface PumpStateDto {
+  pumpId: string
+  isOn: boolean
+  isBlocked: boolean
+  blockReason?: string | null
+}
+
+export interface ValveStateDto {
+  valveId: number
+  isOpen: boolean
+  isLocked: boolean
+  lockReason?: string | null
+}
+
+export interface ContainerStateDto {
+  containerId: number
+  isFull: boolean
+}
+
+export interface DeviceStateDto {
+  deviceId: string
+  timestampUtc: string
+  lastHeartbeatAtUtc?: string | null
+  observedPublicIpAddress?: string | null
+  hostname?: string | null
+  agentVersion?: string | null
+  tower: ReservoirStateDto
+  cistern: ReservoirStateDto
+  flow: FlowStateDto
+  pumps: PumpStateDto[]
+  valves: ValveStateDto[]
+  containers: ContainerStateDto[]
+  faults: string[]
+  warnings: string[]
+  rawInputs?: Record<string, boolean> | null
+}
+
 export interface MeasurementDto {
   id: string
   deviceId: string
@@ -18,6 +71,7 @@ export interface MeasurementDto {
   pumpOn: boolean
   levels: LevelMeasurementDto[]
   actuators: ActuatorSnapshotDto[]
+  detailedStateJson?: string | null
 }
 
 export interface ExperimentDto {

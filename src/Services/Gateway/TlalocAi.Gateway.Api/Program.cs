@@ -66,6 +66,12 @@ static string? ResolveTarget(string path, IConfiguration configuration)
         return configuration["Services:Control"];
     }
 
+    if (path.StartsWith("devices", StringComparison.OrdinalIgnoreCase)
+        && (path.EndsWith("/telemetry", StringComparison.OrdinalIgnoreCase) || path.EndsWith("/state", StringComparison.OrdinalIgnoreCase)))
+    {
+        return configuration["Services:Telemetry"];
+    }
+
     if (path.StartsWith("devices", StringComparison.OrdinalIgnoreCase))
     {
         return configuration["Services:Devices"];
@@ -77,6 +83,11 @@ static string? ResolveTarget(string path, IConfiguration configuration)
     }
 
     if (path.StartsWith("commands", StringComparison.OrdinalIgnoreCase))
+    {
+        return configuration["Services:Control"];
+    }
+
+    if (path.StartsWith("valves", StringComparison.OrdinalIgnoreCase) || path.StartsWith("pumps", StringComparison.OrdinalIgnoreCase))
     {
         return configuration["Services:Control"];
     }

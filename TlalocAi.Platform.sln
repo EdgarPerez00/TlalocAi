@@ -29,7 +29,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TlalocAi.Identity.Api", "sr
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Devices", "Devices", "{DD427247-E896-1086-4984-D920017585DE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TlalocAi.Devices.Domain", "src\Services\Devices\TlalocAi.Devices.Domain\TlalocAi.Devices.Domain.csproj", "{6BDD200C-CCA3-453F-8640-428BFFC7E02B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TlalocAi.Devices.Domain", "src\Services\Devices\TlalocAi.Devices.Application\TlalocAi.Devices.Domain\TlalocAi.Devices.Domain.csproj", "{6BDD200C-CCA3-453F-8640-428BFFC7E02B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TlalocAi.Devices.Application", "src\Services\Devices\TlalocAi.Devices.Application\TlalocAi.Devices.Application.csproj", "{3072437C-82F8-4DAB-9974-EDE51F1131D7}"
 EndProject
@@ -80,6 +80,20 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TlalocAi.Analytics.UnitTests", "tests\TlalocAi.Analytics.UnitTests\TlalocAi.Analytics.UnitTests.csproj", "{55237F94-206D-4815-9DAC-D8368015921E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TlalocAi.IntegrationTests", "tests\TlalocAi.IntegrationTests\TlalocAi.IntegrationTests.csproj", "{EABA7296-74CF-48DD-A720-664339C1C1E6}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Agents", "Agents", "{BB45B5A8-6B14-5255-64D0-EA6BEE8A90C1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TlalocAi.RaspberryAgent", "TlalocAi.RaspberryAgent", "{C29C672F-B976-50B6-DA52-9D61315F522D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TlalocAi.RaspberryAgent.Domain", "src\Agents\TlalocAi.RaspberryAgent\TlalocAi.RaspberryAgent.Domain\TlalocAi.RaspberryAgent.Domain.csproj", "{500CF4F7-5A00-4375-97CF-B796CB91A95F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TlalocAi.RaspberryAgent.Application", "src\Agents\TlalocAi.RaspberryAgent\TlalocAi.RaspberryAgent.Application\TlalocAi.RaspberryAgent.Application.csproj", "{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TlalocAi.RaspberryAgent.Infrastructure", "src\Agents\TlalocAi.RaspberryAgent\TlalocAi.RaspberryAgent.Infrastructure\TlalocAi.RaspberryAgent.Infrastructure.csproj", "{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TlalocAi.RaspberryAgent.Worker", "src\Agents\TlalocAi.RaspberryAgent\TlalocAi.RaspberryAgent.Worker\TlalocAi.RaspberryAgent.Worker.csproj", "{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TlalocAi.RaspberryAgent.UnitTests", "tests\TlalocAi.RaspberryAgent.UnitTests\TlalocAi.RaspberryAgent.UnitTests.csproj", "{E1962403-60D2-4202-B684-90B0B051A185}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -439,6 +453,66 @@ Global
 		{EABA7296-74CF-48DD-A720-664339C1C1E6}.Release|x64.Build.0 = Release|Any CPU
 		{EABA7296-74CF-48DD-A720-664339C1C1E6}.Release|x86.ActiveCfg = Release|Any CPU
 		{EABA7296-74CF-48DD-A720-664339C1C1E6}.Release|x86.Build.0 = Release|Any CPU
+		{500CF4F7-5A00-4375-97CF-B796CB91A95F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{500CF4F7-5A00-4375-97CF-B796CB91A95F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{500CF4F7-5A00-4375-97CF-B796CB91A95F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{500CF4F7-5A00-4375-97CF-B796CB91A95F}.Debug|x64.Build.0 = Debug|Any CPU
+		{500CF4F7-5A00-4375-97CF-B796CB91A95F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{500CF4F7-5A00-4375-97CF-B796CB91A95F}.Debug|x86.Build.0 = Debug|Any CPU
+		{500CF4F7-5A00-4375-97CF-B796CB91A95F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{500CF4F7-5A00-4375-97CF-B796CB91A95F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{500CF4F7-5A00-4375-97CF-B796CB91A95F}.Release|x64.ActiveCfg = Release|Any CPU
+		{500CF4F7-5A00-4375-97CF-B796CB91A95F}.Release|x64.Build.0 = Release|Any CPU
+		{500CF4F7-5A00-4375-97CF-B796CB91A95F}.Release|x86.ActiveCfg = Release|Any CPU
+		{500CF4F7-5A00-4375-97CF-B796CB91A95F}.Release|x86.Build.0 = Release|Any CPU
+		{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7}.Debug|x64.Build.0 = Debug|Any CPU
+		{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7}.Debug|x86.Build.0 = Debug|Any CPU
+		{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7}.Release|x64.ActiveCfg = Release|Any CPU
+		{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7}.Release|x64.Build.0 = Release|Any CPU
+		{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7}.Release|x86.ActiveCfg = Release|Any CPU
+		{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7}.Release|x86.Build.0 = Release|Any CPU
+		{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6}.Debug|x64.Build.0 = Debug|Any CPU
+		{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6}.Debug|x86.Build.0 = Debug|Any CPU
+		{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6}.Release|x64.ActiveCfg = Release|Any CPU
+		{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6}.Release|x64.Build.0 = Release|Any CPU
+		{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6}.Release|x86.ActiveCfg = Release|Any CPU
+		{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6}.Release|x86.Build.0 = Release|Any CPU
+		{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0}.Debug|x64.Build.0 = Debug|Any CPU
+		{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0}.Debug|x86.Build.0 = Debug|Any CPU
+		{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0}.Release|x64.ActiveCfg = Release|Any CPU
+		{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0}.Release|x64.Build.0 = Release|Any CPU
+		{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0}.Release|x86.ActiveCfg = Release|Any CPU
+		{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0}.Release|x86.Build.0 = Release|Any CPU
+		{E1962403-60D2-4202-B684-90B0B051A185}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E1962403-60D2-4202-B684-90B0B051A185}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E1962403-60D2-4202-B684-90B0B051A185}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E1962403-60D2-4202-B684-90B0B051A185}.Debug|x64.Build.0 = Debug|Any CPU
+		{E1962403-60D2-4202-B684-90B0B051A185}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E1962403-60D2-4202-B684-90B0B051A185}.Debug|x86.Build.0 = Debug|Any CPU
+		{E1962403-60D2-4202-B684-90B0B051A185}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E1962403-60D2-4202-B684-90B0B051A185}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E1962403-60D2-4202-B684-90B0B051A185}.Release|x64.ActiveCfg = Release|Any CPU
+		{E1962403-60D2-4202-B684-90B0B051A185}.Release|x64.Build.0 = Release|Any CPU
+		{E1962403-60D2-4202-B684-90B0B051A185}.Release|x86.ActiveCfg = Release|Any CPU
+		{E1962403-60D2-4202-B684-90B0B051A185}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -481,5 +555,12 @@ Global
 		{12C49DBD-95A5-4002-85B2-1346FBFCAD79} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{55237F94-206D-4815-9DAC-D8368015921E} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{EABA7296-74CF-48DD-A720-664339C1C1E6} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{BB45B5A8-6B14-5255-64D0-EA6BEE8A90C1} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{C29C672F-B976-50B6-DA52-9D61315F522D} = {BB45B5A8-6B14-5255-64D0-EA6BEE8A90C1}
+		{500CF4F7-5A00-4375-97CF-B796CB91A95F} = {C29C672F-B976-50B6-DA52-9D61315F522D}
+		{FFBE29CA-15BB-4759-B0C0-58B33E98F0F7} = {C29C672F-B976-50B6-DA52-9D61315F522D}
+		{CA4BABD2-C6F1-4AF8-810C-C54DEB544FB6} = {C29C672F-B976-50B6-DA52-9D61315F522D}
+		{03DD1B7A-5052-45BF-8F17-2CC47B20ACF0} = {C29C672F-B976-50B6-DA52-9D61315F522D}
+		{E1962403-60D2-4202-B684-90B0B051A185} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

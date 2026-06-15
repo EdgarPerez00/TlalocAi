@@ -1,4 +1,4 @@
-import type { CreateExperimentRequest, ExperimentDto, MeasurementDto } from '../types/telemetry'
+import type { CreateExperimentRequest, DeviceStateDto, ExperimentDto, MeasurementDto } from '../types/telemetry'
 import { request } from './apiClient'
 
 interface TelemetryQuery {
@@ -20,6 +20,13 @@ export function getLatestTelemetry(deviceId: string): Promise<MeasurementDto> {
     method: 'GET',
     url: '/api/telemetry/latest',
     params: { deviceId },
+  })
+}
+
+export function getDeviceState(deviceId: string): Promise<DeviceStateDto> {
+  return request<DeviceStateDto>('telemetry', {
+    method: 'GET',
+    url: `/api/devices/${deviceId}/state`,
   })
 }
 

@@ -16,6 +16,7 @@ public sealed class Measurement
     public decimal FlowLpm { get; set; }
     public decimal TotalLiters { get; set; }
     public bool PumpOn { get; set; }
+    public string? DetailedStateJson { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public List<LevelMeasurement> Levels { get; set; } = [];
     public List<ActuatorSnapshot> Actuators { get; set; } = [];

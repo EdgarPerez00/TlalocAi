@@ -5,6 +5,7 @@ const navItems = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/devices', label: 'Dispositivos' },
   { to: '/experiments', label: 'Experimentos' },
+  { to: '/monitoring', label: 'Monitoreo' },
   { to: '/control', label: 'Control' },
   { to: '/telemetry', label: 'Telemetría' },
   { to: '/analytics', label: 'Estadísticas' },

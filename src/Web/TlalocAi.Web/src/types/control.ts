@@ -9,6 +9,12 @@ export interface DeviceCommandDto {
   sentAtUtc?: string | null
   executedAtUtc?: string | null
   errorMessage?: string | null
+  targetType?: string | null
+  targetId?: string | null
+  commandType?: string | null
+  requestedBy?: string | null
+  payload?: string | null
+  resultMessage?: string | null
 }
 
 export interface CreateCommandRequest {
@@ -16,4 +22,6 @@ export interface CreateCommandRequest {
   type: string
   target: string
   state: boolean
+  requestedBy?: string
+  payload?: string
 }

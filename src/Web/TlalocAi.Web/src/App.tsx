@@ -11,6 +11,7 @@ import DevicesPage from './pages/DevicesPage'
 import ExperimentDetailPage from './pages/ExperimentDetailPage'
 import ExperimentsPage from './pages/ExperimentsPage'
 import LoginPage from './pages/LoginPage'
+import MonitoringPage from './pages/MonitoringPage'
 import NotFoundPage from './pages/NotFoundPage'
 import TelemetryPage from './pages/TelemetryPage'
 
@@ -30,6 +31,7 @@ function App() {
               <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
               <Route path="/experiments" element={<ExperimentsPage />} />
               <Route path="/experiments/:experimentId" element={<ExperimentDetailPage />} />
+              <Route path="/monitoring" element={<MonitoringPage />} />
               <Route path="/control" element={<ControlPage />} />
               <Route path="/telemetry" element={<TelemetryPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />

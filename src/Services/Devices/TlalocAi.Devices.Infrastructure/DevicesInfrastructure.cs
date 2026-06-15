@@ -23,6 +23,9 @@ public sealed class DevicesDbContext(DbContextOptions<DevicesDbContext> options)
             entity.Property(device => device.Name).HasMaxLength(160).IsRequired();
             entity.Property(device => device.Description).HasMaxLength(500);
             entity.Property(device => device.ApiKeyHash).HasMaxLength(128).IsRequired();
+            entity.Property(device => device.ObservedPublicIpAddress).HasMaxLength(64);
+            entity.Property(device => device.Hostname).HasMaxLength(160);
+            entity.Property(device => device.AgentVersion).HasMaxLength(80);
             entity.HasMany(device => device.Sensors).WithOne().HasForeignKey(sensor => sensor.DeviceId);
             entity.HasMany(device => device.Actuators).WithOne().HasForeignKey(actuator => actuator.DeviceId);
         });
@@ -104,6 +107,35 @@ public sealed class DevicesService(DevicesDbContext dbContext) : IDevicesService
         return Result<RotateApiKeyResponse>.Success(new RotateApiKeyResponse(device.Id, apiKey));
     }
 
+    public async Task<Result<DeviceHeartbeatResponse>> RegisterHeartbeatAsync(
+        string deviceId,
+        DeviceHeartbeatRequest request,
+        string apiKey,
+        string? observedPublicIpAddress,
+        CancellationToken cancellationToken)
+    {
+        var device = await dbContext.Devices.SingleOrDefaultAsync(item => item.Id == deviceId && item.IsActive, cancellationToken);
+        if (device is null || !ApiKeyHasher.Verify(apiKey, device.ApiKeyHash))
+        {
+            return Result<DeviceHeartbeatResponse>.Failure("devices.unauthorized_device", "Invalid device id or API key.");
+        }
+
+        var now = Clock.UtcNow;
+        device.LastSeenAtUtc = now;
+        device.ObservedPublicIpAddress = TrimToNull(observedPublicIpAddress, 64);
+        device.Hostname = TrimToNull(request.Hostname, 160);
+        device.AgentVersion = TrimToNull(request.AgentVersion, 80);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return Result<DeviceHeartbeatResponse>.Success(new DeviceHeartbeatResponse(
+            device.Id,
+            now,
+            device.ObservedPublicIpAddress,
+            device.Hostname,
+            device.AgentVersion));
+    }
+
     public async Task<Result<SensorResponse>> CreateSensorAsync(string deviceId, CreateSensorRequest request, CancellationToken cancellationToken)
     {
         if (!await dbContext.Devices.AnyAsync(device => device.Id == deviceId, cancellationToken))
@@ -153,13 +185,33 @@ public sealed class DevicesService(DevicesDbContext dbContext) : IDevicesService
     }
 
     private static DeviceResponse ToResponse(Device device) =>
-        new(device.Id, device.Name, device.Description, device.IsActive, device.CreatedAtUtc, device.LastSeenAtUtc);
+        new(
+            device.Id,
+            device.Name,
+            device.Description,
+            device.IsActive,
+            device.CreatedAtUtc,
+            device.LastSeenAtUtc,
+            device.ObservedPublicIpAddress,
+            device.Hostname,
+            device.AgentVersion);
 
     private static SensorResponse ToResponse(Sensor sensor) =>
         new(sensor.Id, sensor.DeviceId, sensor.Name, sensor.Type.ToString(), sensor.GpioPin, sensor.IsActive, sensor.CreatedAtUtc);
 
     private static ActuatorResponse ToResponse(Actuator actuator) =>
         new(actuator.Id, actuator.DeviceId, actuator.Name, actuator.Type.ToString(), actuator.GpioPin, actuator.ActiveLow, actuator.IsActive, actuator.CreatedAtUtc);
+
+    private static string? TrimToNull(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
+    }
 }
 
 public static class DevicesInfrastructureExtensions

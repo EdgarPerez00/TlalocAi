@@ -1,7 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\TlalocAi.Devices.Domain\TlalocAi.Devices.Domain.csproj" />
+    <Compile Remove="TlalocAi.Devices.Domain\**\*.cs" />
+    <ProjectReference Include="TlalocAi.Devices.Domain\TlalocAi.Devices.Domain.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\TlalocAi.SharedKernel\TlalocAi.SharedKernel.csproj" />
   </ItemGroup>
 

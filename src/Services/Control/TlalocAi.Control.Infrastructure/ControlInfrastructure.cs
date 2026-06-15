@@ -22,8 +22,14 @@ public sealed class ControlDbContext(DbContextOptions<ControlDbContext> options)
             entity.Property(command => command.DeviceId).HasMaxLength(80).IsRequired();
             entity.Property(command => command.Type).HasConversion<string>().HasMaxLength(60).IsRequired();
             entity.Property(command => command.Target).HasMaxLength(120).IsRequired();
+            entity.Property(command => command.TargetType).HasMaxLength(40);
+            entity.Property(command => command.TargetId).HasMaxLength(80);
+            entity.Property(command => command.CommandType).HasMaxLength(40);
+            entity.Property(command => command.RequestedBy).HasMaxLength(160);
+            entity.Property(command => command.Payload).HasMaxLength(2000);
             entity.Property(command => command.Status).HasConversion<string>().HasMaxLength(40).IsRequired();
             entity.Property(command => command.ErrorMessage).HasMaxLength(500);
+            entity.Property(command => command.ResultMessage).HasMaxLength(500);
             entity.HasIndex(command => new { command.DeviceId, command.Status });
         });
 
@@ -64,7 +70,7 @@ public sealed class ControlService(ControlDbContext dbContext) : IControlService
 {
     private static readonly HashSet<string> AllowedTargets = new(StringComparer.OrdinalIgnoreCase)
     {
-        "pump", "valve_1", "valve_2", "valve_3", "valve_4"
+        "pump", "pump_tower", "pump_cistern", "pump_1", "pump_2", "valve_1", "valve_2", "valve_3", "valve_4"
     };
 
     public async Task<Result<CommandResponse>> CreateCommandAsync(CreateCommandRequest request, CancellationToken cancellationToken)
@@ -95,6 +101,11 @@ public sealed class ControlService(ControlDbContext dbContext) : IControlService
             Type = type,
             Target = request.Target,
             State = request.State,
+            TargetType = InferTargetType(request.Target),
+            TargetId = InferTargetId(request.Target),
+            CommandType = InferCommandType(request.Target, request.State),
+            RequestedBy = TrimToNull(request.RequestedBy, 160),
+            Payload = TrimToNull(request.Payload, 2000),
             CreatedAtUtc = Clock.UtcNow
         };
 
@@ -163,25 +174,36 @@ public sealed class ControlService(ControlDbContext dbContext) : IControlService
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return Result<IReadOnlyList<PendingCommandResponse>>.Success(commands.Select(command =>
-            new PendingCommandResponse(command.Id, command.Type.ToString(), command.Target, command.State, command.CreatedAtUtc)).ToList());
+            new PendingCommandResponse(command.Id, command.Type.ToString(), command.Target, command.State, command.CreatedAtUtc, command.TargetType, command.TargetId, command.CommandType, command.Payload)).ToList());
     }
 
     public async Task<Result<CommandResponse>> AckCommandAsync(Guid commandId, AckCommandRequest request, string apiKey, CancellationToken cancellationToken)
     {
-        if (!await ValidateDeviceAsync(request.DeviceId, apiKey, cancellationToken))
+        return await CompleteCommandAsync(commandId, request.DeviceId, request.Success, request.Message, request.ExecutedAtUtc, apiKey, cancellationToken);
+    }
+
+    public async Task<Result<CommandResponse>> RejectCommandAsync(Guid commandId, RejectCommandRequest request, string apiKey, CancellationToken cancellationToken)
+    {
+        return await CompleteCommandAsync(commandId, request.DeviceId, false, request.Reason, request.ExecutedAtUtc, apiKey, cancellationToken);
+    }
+
+    private async Task<Result<CommandResponse>> CompleteCommandAsync(Guid commandId, string deviceId, bool success, string? message, DateTime executedAtUtc, string apiKey, CancellationToken cancellationToken)
+    {
+        if (!await ValidateDeviceAsync(deviceId, apiKey, cancellationToken))
         {
             return Result<CommandResponse>.Failure("control.unauthorized_device", "Invalid device id or API key.");
         }
 
-        var command = await dbContext.Commands.SingleOrDefaultAsync(item => item.Id == commandId && item.DeviceId == request.DeviceId, cancellationToken);
+        var command = await dbContext.Commands.SingleOrDefaultAsync(item => item.Id == commandId && item.DeviceId == deviceId, cancellationToken);
         if (command is null)
         {
             return Result<CommandResponse>.Failure("control.not_found", "Command not found.");
         }
 
-        command.Status = request.Success ? DeviceCommandStatus.Executed : DeviceCommandStatus.Failed;
-        command.ExecutedAtUtc = request.ExecutedAtUtc == default ? Clock.UtcNow : request.ExecutedAtUtc.ToUniversalTime();
-        command.ErrorMessage = request.Success ? null : request.Message;
+        command.Status = success ? DeviceCommandStatus.Executed : DeviceCommandStatus.Failed;
+        command.ExecutedAtUtc = executedAtUtc == default ? Clock.UtcNow : executedAtUtc.ToUniversalTime();
+        command.ErrorMessage = success ? null : message;
+        command.ResultMessage = message;
         await dbContext.SaveChangesAsync(cancellationToken);
         return Result<CommandResponse>.Success(ToResponse(command));
     }
@@ -193,7 +215,50 @@ public sealed class ControlService(ControlDbContext dbContext) : IControlService
     }
 
     private static CommandResponse ToResponse(DeviceCommand command) =>
-        new(command.Id, command.DeviceId, command.Type.ToString(), command.Target, command.State, command.Status.ToString(), command.CreatedAtUtc, command.SentAtUtc, command.ExecutedAtUtc, command.ErrorMessage);
+        new(
+            command.Id,
+            command.DeviceId,
+            command.Type.ToString(),
+            command.Target,
+            command.State,
+            command.Status.ToString(),
+            command.CreatedAtUtc,
+            command.SentAtUtc,
+            command.ExecutedAtUtc,
+            command.ErrorMessage,
+            command.TargetType,
+            command.TargetId,
+            command.CommandType,
+            command.RequestedBy,
+            command.Payload,
+            command.ResultMessage);
+
+    private static string InferTargetType(string target) =>
+        target.StartsWith("valve_", StringComparison.OrdinalIgnoreCase) ? "Valve" : "Pump";
+
+    private static string InferTargetId(string target) =>
+        target.Contains('_', StringComparison.Ordinal) ? target[(target.IndexOf('_') + 1)..] : target;
+
+    private static string InferCommandType(string target, bool state)
+    {
+        if (target.StartsWith("valve_", StringComparison.OrdinalIgnoreCase))
+        {
+            return state ? "Open" : "Close";
+        }
+
+        return state ? "Start" : "Stop";
+    }
+
+    private static string? TrimToNull(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
+    }
 }
 
 public static class ControlInfrastructureExtensions

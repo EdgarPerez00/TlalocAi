@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -9,7 +9,6 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
@@ -20,9 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Services\Devices\TlalocAi.Devices.Application\TlalocAi.Devices.Application.csproj" />
-    <ProjectReference Include="..\..\src\Services\Devices\TlalocAi.Devices.Application\TlalocAi.Devices.Domain\TlalocAi.Devices.Domain.csproj" />
-    <ProjectReference Include="..\..\src\Services\Devices\TlalocAi.Devices.Infrastructure\TlalocAi.Devices.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Agents\TlalocAi.RaspberryAgent\TlalocAi.RaspberryAgent.Domain\TlalocAi.RaspberryAgent.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Agents\TlalocAi.RaspberryAgent\TlalocAi.RaspberryAgent.Application\TlalocAi.RaspberryAgent.Application.csproj" />
+    <ProjectReference Include="..\..\src\Agents\TlalocAi.RaspberryAgent\TlalocAi.RaspberryAgent.Infrastructure\TlalocAi.RaspberryAgent.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

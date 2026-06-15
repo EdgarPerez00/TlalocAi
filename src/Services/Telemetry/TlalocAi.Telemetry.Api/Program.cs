@@ -30,6 +30,36 @@ telemetry.MapPost("/batch", async Task<Results<Ok<TelemetryBatchResponse>, Probl
     return result.IsSuccess ? TypedResults.Ok(result.Value!) : TypedResults.Problem(result.Error.Message, statusCode: StatusCodes.Status400BadRequest);
 });
 
+var deviceTelemetry = app.MapGroup("/api/devices").WithTags("Device telemetry");
+
+deviceTelemetry.MapPost("/{deviceId}/telemetry", async Task<Results<Ok<TelemetryBatchResponse>, ProblemHttpResult>> (
+    string deviceId,
+    DeviceTelemetryRequest request,
+    HttpRequest httpRequest,
+    ITelemetryService service,
+    IConfiguration configuration,
+    CancellationToken cancellationToken) =>
+{
+    var headerName = configuration["DeviceAuth:ApiKeyHeaderName"] ?? "X-Device-Api-Key";
+    var apiKey = httpRequest.Headers[headerName].FirstOrDefault();
+    if (string.IsNullOrWhiteSpace(apiKey))
+    {
+        return TypedResults.Problem("Device API key is required.", statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    var result = await service.StoreDeviceTelemetryAsync(deviceId, request, apiKey, cancellationToken);
+    return result.IsSuccess ? TypedResults.Ok(result.Value!) : TypedResults.Problem(result.Error.Message, statusCode: StatusCodes.Status400BadRequest);
+}).AllowAnonymous();
+
+deviceTelemetry.MapGet("/{deviceId}/state", async Task<Results<Ok<DeviceStateResponse>, ProblemHttpResult>> (
+    string deviceId,
+    ITelemetryService service,
+    CancellationToken cancellationToken) =>
+{
+    var result = await service.GetDeviceStateAsync(deviceId, cancellationToken);
+    return result.IsSuccess ? TypedResults.Ok(result.Value!) : TypedResults.Problem(result.Error.Message, statusCode: StatusCodes.Status404NotFound);
+}).RequireAuthorization();
+
 telemetry.MapGet("/", (string deviceId, DateTime? fromUtc, DateTime? toUtc, ITelemetryService service, CancellationToken cancellationToken) =>
     service.GetHistoryAsync(deviceId, fromUtc, toUtc, cancellationToken)).RequireAuthorization();
 

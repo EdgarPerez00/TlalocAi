@@ -21,6 +21,9 @@ public sealed class Device
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? LastSeenAtUtc { get; set; }
+    public string? ObservedPublicIpAddress { get; set; }
+    public string? Hostname { get; set; }
+    public string? AgentVersion { get; set; }
     public List<Sensor> Sensors { get; set; } = [];
     public List<Actuator> Actuators { get; set; } = [];
 }
