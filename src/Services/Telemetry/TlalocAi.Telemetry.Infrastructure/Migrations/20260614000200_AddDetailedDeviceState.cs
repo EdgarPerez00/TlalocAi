@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -5,6 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace TlalocAi.Telemetry.Infrastructure.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(TelemetryDbContext))]
+    [Migration("20260614000200_AddDetailedDeviceState")]
     public partial class AddDetailedDeviceState : Migration
     {
         /// <inheritdoc />

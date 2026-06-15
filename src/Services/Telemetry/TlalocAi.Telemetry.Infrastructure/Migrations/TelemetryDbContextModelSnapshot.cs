@@ -120,6 +120,9 @@ namespace TlalocAi.Telemetry.Infrastructure.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("varchar(80)");
 
+                    b.Property<string>("DetailedStateJson")
+                        .HasColumnType("json");
+
                     b.Property<Guid?>("ExperimentId")
                         .HasColumnType("char(36)");
 
@@ -155,11 +158,23 @@ namespace TlalocAi.Telemetry.Infrastructure.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("varchar(128)");
 
+                    b.Property<string>("AgentVersion")
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<string>("Hostname")
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("tinyint(1)");
 
                     b.Property<DateTime?>("LastSeenAtUtc")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ObservedPublicIpAddress")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
 
                     b.HasKey("Id");
 

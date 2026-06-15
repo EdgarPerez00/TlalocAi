@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -5,6 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace TlalocAi.Control.Infrastructure.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(ControlDbContext))]
+    [Migration("20260614000300_AddCommandMetadata")]
     public partial class AddCommandMetadata : Migration
     {
         /// <inheritdoc />

@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -5,6 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace TlalocAi.Devices.Infrastructure.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(DevicesDbContext))]
+    [Migration("20260614000100_AddRaspberryAgentMetadata")]
     public partial class AddRaspberryAgentMetadata : Migration
     {
         /// <inheritdoc />

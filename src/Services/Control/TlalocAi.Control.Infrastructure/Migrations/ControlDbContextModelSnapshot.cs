@@ -28,6 +28,10 @@ namespace TlalocAi.Control.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("CommandType")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
                     b.Property<string>("DeviceId")
                         .IsRequired()
                         .HasMaxLength(80)
@@ -39,6 +43,18 @@ namespace TlalocAi.Control.Infrastructure.Migrations
 
                     b.Property<DateTime?>("ExecutedAtUtc")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Payload")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("RequestedBy")
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)");
+
+                    b.Property<string>("ResultMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
 
                     b.Property<DateTime?>("SentAtUtc")
                         .HasColumnType("datetime(6)");
@@ -55,6 +71,14 @@ namespace TlalocAi.Control.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(120)
                         .HasColumnType("varchar(120)");
+
+                    b.Property<string>("TargetId")
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<string>("TargetType")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
 
                     b.Property<string>("Type")
                         .IsRequired()
