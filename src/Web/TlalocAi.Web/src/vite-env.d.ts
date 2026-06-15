@@ -13,3 +13,7 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+interface Window {
+  readonly __TLALOCAI_CONFIG__?: Partial<ImportMetaEnv>
+}

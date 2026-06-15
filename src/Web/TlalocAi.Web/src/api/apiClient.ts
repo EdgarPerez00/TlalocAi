@@ -46,8 +46,12 @@ const serviceEnvMap: Record<ServiceName, string> = {
   analytics: 'VITE_ANALYTICS_API_BASE_URL',
 }
 
+function getEnvValue(key: keyof ImportMetaEnv): string | undefined {
+  return window.__TLALOCAI_CONFIG__?.[key] ?? import.meta.env[key]
+}
+
 function useGateway(): boolean {
-  return String(import.meta.env.VITE_USE_GATEWAY ?? 'true').toLowerCase() !== 'false'
+  return String(getEnvValue('VITE_USE_GATEWAY') ?? 'true').toLowerCase() !== 'false'
 }
 
 function normalizeBaseUrl(baseUrl?: string): string {
@@ -62,11 +66,11 @@ function normalizeBaseUrl(baseUrl?: string): string {
 
 function getServiceBaseUrl(service: ServiceName): string {
   if (useGateway()) {
-    return normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL)
+    return normalizeBaseUrl(getEnvValue('VITE_API_BASE_URL'))
   }
 
   const envKey = serviceEnvMap[service] as keyof ImportMetaEnv
-  return normalizeBaseUrl(import.meta.env[envKey] ?? import.meta.env.VITE_API_BASE_URL)
+  return normalizeBaseUrl(getEnvValue(envKey) ?? getEnvValue('VITE_API_BASE_URL'))
 }
 
 export function configureApiClient(options: {
