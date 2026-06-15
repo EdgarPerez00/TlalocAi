@@ -44,7 +44,7 @@ function LoginPage() {
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h2 className="h3 mb-1">{mode === 'login' ? 'Iniciar sesión' : 'Registrar usuario'}</h2>
-          <p className="text-secondary mb-0">Usa tu cuenta para acceder al dashboard operativo.</p>
+          <p className="text-secondary mb-0">Usa tu usuario y contraseña.</p>
         </div>
         <div className="btn-group">
           <button
@@ -102,7 +102,7 @@ function LoginPage() {
 
         <div>
           <label htmlFor="password" className="form-label">
-            Password
+            Contraseña
           </label>
           <input
             id="password"

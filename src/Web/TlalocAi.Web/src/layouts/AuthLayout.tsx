@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom'
+import BrandMark from '../components/BrandMark'
 
 function AuthLayout() {
   return (
@@ -9,14 +10,14 @@ function AuthLayout() {
             <div className="row g-0">
               <div className="col-lg-5 hero-panel p-4 p-lg-5 d-flex flex-column justify-content-between">
                 <div>
-                  <div className="brand-mark mb-4">TA</div>
-                  <h1 className="display-6 fw-semibold">TlalocAI Platform</h1>
+                  <BrandMark className="mb-4" />
+                  <h1 className="display-6 fw-semibold">TlalocAI</h1>
                   <p className="mb-0 text-white-50">
-                    Monitoreo de flujo, nivel y actuadores para el modelo a escala de calle.
+                    Monitoreo de flujo, nivel y actuadores.
                   </p>
                 </div>
                 <div className="small text-white-50 mt-4">
-                  Frontend React + Bootstrap conectado al Gateway de TlalocAi.Platform.
+                  ESCOM - IPN &copy; 2026. Equipo 1.
                 </div>
               </div>
               <div className="col-lg-7 p-4 p-lg-5">

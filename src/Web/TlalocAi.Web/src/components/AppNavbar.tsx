@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import BrandMark from './BrandMark'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard' },
@@ -18,7 +19,7 @@ function AppNavbar() {
     <nav className="navbar navbar-expand-lg navbar-dark navbar-blur sticky-top border-bottom border-info-subtle">
       <div className="container-fluid px-4">
         <NavLink to="/dashboard" className="navbar-brand d-flex align-items-center gap-3">
-          <span className="brand-mark">TA</span>
+          <BrandMark />
           <span className="fw-semibold">TlalocAI</span>
         </NavLink>
 

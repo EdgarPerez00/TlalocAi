@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import BrandMark from './BrandMark'
 
 interface EmptyStateProps {
   title: string
@@ -10,7 +11,7 @@ function EmptyState({ title, message, action }: EmptyStateProps) {
   return (
     <div className="card surface-card border-0">
       <div className="card-body text-center py-5">
-        <div className="brand-mark mx-auto mb-3">TA</div>
+        <BrandMark className="mx-auto mb-3" />
         <h3 className="h5">{title}</h3>
         <p className="text-secondary mb-3">{message}</p>
         {action}
