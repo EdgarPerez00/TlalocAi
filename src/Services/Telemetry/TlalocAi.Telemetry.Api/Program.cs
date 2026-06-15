@@ -9,6 +9,7 @@ builder.Services.AddTelemetryInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 app.UseTlalocServiceDefaults();
+await app.ApplyDatabaseMigrationsAsync<TelemetryDbContext>();
 
 var telemetry = app.MapGroup("/api/telemetry").WithTags("Telemetry");
 

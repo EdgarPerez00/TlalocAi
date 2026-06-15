@@ -10,6 +10,7 @@ builder.Services.AddIdentityInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 app.UseTlalocServiceDefaults();
+await app.ApplyDatabaseMigrationsAsync<IdentityDbContext>();
 
 var auth = app.MapGroup("/api/auth").WithTags("Auth");
 

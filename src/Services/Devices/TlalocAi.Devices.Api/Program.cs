@@ -9,6 +9,7 @@ builder.Services.AddDevicesInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 app.UseTlalocServiceDefaults();
+await app.ApplyDatabaseMigrationsAsync<DevicesDbContext>();
 
 var devices = app.MapGroup("/api/devices").WithTags("Devices").RequireAuthorization();
 

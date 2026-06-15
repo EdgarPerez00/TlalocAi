@@ -2,9 +2,11 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Serilog;
@@ -119,6 +121,59 @@ public static class ServiceDefaultsExtensions
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapHealthChecks("/health", new HealthCheckOptions());
+        return app;
+    }
+
+    public static async Task<WebApplication> ApplyDatabaseMigrationsAsync<TContext>(this WebApplication app)
+        where TContext : DbContext
+    {
+        var applyMigrations = app.Configuration.GetValue("Database:ApplyMigrationsOnStartup", true);
+        if (!applyMigrations)
+        {
+            return app;
+        }
+
+        var retryCount = Math.Max(1, app.Configuration.GetValue("Database:MigrationRetryCount", 5));
+        var retryDelaySeconds = Math.Max(1, app.Configuration.GetValue("Database:MigrationRetryDelaySeconds", 5));
+        var logger = app.Services.GetRequiredService<ILogger<TContext>>();
+
+        for (var attempt = 1; attempt <= retryCount; attempt++)
+        {
+            try
+            {
+                await using var scope = app.Services.CreateAsyncScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<TContext>();
+                var pendingMigrations = await dbContext.Database.GetPendingMigrationsAsync();
+
+                if (pendingMigrations.Any())
+                {
+                    logger.LogInformation("Applying {Count} pending migrations for {DbContext}.", pendingMigrations.Count(), typeof(TContext).Name);
+                    await dbContext.Database.MigrateAsync();
+                }
+                else
+                {
+                    logger.LogInformation("No pending migrations for {DbContext}.", typeof(TContext).Name);
+                }
+
+                return app;
+            }
+            catch (Exception exception) when (attempt < retryCount)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Database migration attempt {Attempt}/{RetryCount} failed for {DbContext}. Retrying in {DelaySeconds} seconds.",
+                    attempt,
+                    retryCount,
+                    typeof(TContext).Name,
+                    retryDelaySeconds);
+
+                await Task.Delay(TimeSpan.FromSeconds(retryDelaySeconds));
+            }
+        }
+
+        await using var finalScope = app.Services.CreateAsyncScope();
+        var finalDbContext = finalScope.ServiceProvider.GetRequiredService<TContext>();
+        await finalDbContext.Database.MigrateAsync();
         return app;
     }
 

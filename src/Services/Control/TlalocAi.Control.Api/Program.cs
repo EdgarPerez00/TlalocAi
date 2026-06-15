@@ -9,6 +9,7 @@ builder.Services.AddControlInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 app.UseTlalocServiceDefaults();
+await app.ApplyDatabaseMigrationsAsync<ControlDbContext>();
 
 var commands = app.MapGroup("/api/commands").WithTags("Commands");
 
