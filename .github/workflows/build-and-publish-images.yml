@@ -17,18 +17,25 @@ jobs:
       matrix:
         include:
           - dockerfile: src/Services/Analytics/TlalocAi.Analytics.Api/Dockerfile
+            context: .
             image_name: tlalocaianalyticsapi
           - dockerfile: src/Services/Control/TlalocAi.Control.Api/Dockerfile
+            context: .
             image_name: tlalocaicontrolapi
           - dockerfile: src/Services/Devices/TlalocAi.Devices.Api/Dockerfile
+            context: .
             image_name: tlalocaidevicesapi
           - dockerfile: src/Services/Gateway/TlalocAi.Gateway.Api/Dockerfile
+            context: .
             image_name: tlalocaigatewayapi
           - dockerfile: src/Services/Identity/TlalocAi.Identity.Api/Dockerfile
+            context: .
             image_name: tlalocaiidentityapi
           - dockerfile: src/Services/Telemetry/TlalocAi.Telemetry.Api/Dockerfile
+            context: .
             image_name: tlalocaitelemetryapi
           - dockerfile: src/Web/TlalocAi.Web/Dockerfile
+            context: src/Web/TlalocAi.Web
             image_name: tlalocaiweb
 
     steps:
@@ -52,7 +59,7 @@ jobs:
       - name: Build and push ${{ matrix.image_name }}
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
           tags: |
