@@ -93,6 +93,24 @@ public sealed class DevicesService(DevicesDbContext dbContext) : IDevicesService
             : Result<DeviceResponse>.Success(ToResponse(device));
     }
 
+    public async Task<Result<DeviceResponse>> DeleteDeviceAsync(string deviceId, CancellationToken cancellationToken)
+    {
+        var device = await dbContext.Devices
+            .Include(item => item.Sensors)
+            .Include(item => item.Actuators)
+            .SingleOrDefaultAsync(item => item.Id == deviceId, cancellationToken);
+
+        if (device is null)
+        {
+            return Result<DeviceResponse>.Failure("devices.not_found", "Device not found.");
+        }
+
+        var response = ToResponse(device);
+        dbContext.Devices.Remove(device);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return Result<DeviceResponse>.Success(response);
+    }
+
     public async Task<Result<RotateApiKeyResponse>> RotateApiKeyAsync(string deviceId, CancellationToken cancellationToken)
     {
         var device = await dbContext.Devices.SingleOrDefaultAsync(item => item.Id == deviceId, cancellationToken);

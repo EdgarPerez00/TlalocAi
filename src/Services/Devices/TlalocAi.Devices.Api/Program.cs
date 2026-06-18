@@ -35,6 +35,15 @@ devices.MapGet("/{deviceId}", async Task<Results<Ok<DeviceResponse>, ProblemHttp
     return result.IsSuccess ? TypedResults.Ok(result.Value!) : TypedResults.Problem(result.Error.Message, statusCode: StatusCodes.Status404NotFound);
 });
 
+devices.MapDelete("/{deviceId}", async Task<Results<Ok<DeviceResponse>, ProblemHttpResult>> (
+    string deviceId,
+    IDevicesService service,
+    CancellationToken cancellationToken) =>
+{
+    var result = await service.DeleteDeviceAsync(deviceId, cancellationToken);
+    return result.IsSuccess ? TypedResults.Ok(result.Value!) : TypedResults.Problem(result.Error.Message, statusCode: StatusCodes.Status404NotFound);
+});
+
 devices.MapPost("/{deviceId}/rotate-api-key", async Task<Results<Ok<RotateApiKeyResponse>, ProblemHttpResult>> (
     string deviceId,
     IDevicesService service,

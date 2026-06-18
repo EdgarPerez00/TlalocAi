@@ -1,4 +1,5 @@
 import type { LevelMeasurementDto } from '../types/telemetry'
+import { formatSensorName } from '../utils/telemetryLabels'
 
 interface LevelSensorsGridProps {
   levels: LevelMeasurementDto[]
@@ -16,7 +17,7 @@ function LevelSensorsGrid({ levels }: LevelSensorsGridProps) {
           <div className="card border-0 bg-light h-100">
             <div className="card-body">
               <div className="d-flex justify-content-between align-items-center">
-                <span className="fw-semibold">{level.name}</span>
+                <span className="fw-semibold">{formatSensorName(level.name)}</span>
                 <span className={`badge ${level.isActive ? 'text-bg-warning' : 'text-bg-success'}`}>
                   {level.isActive ? 'Detectado' : 'Libre'}
                 </span>

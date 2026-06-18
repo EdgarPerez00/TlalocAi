@@ -17,9 +17,11 @@ function DevicesPage() {
   const [devices, setDevices] = useState<DeviceDto[]>([])
   const [form, setForm] = useState(initialForm)
   const [createdDevice, setCreatedDevice] = useState<DeviceCreatedDto | null>(null)
+  const [deviceToDelete, setDeviceToDelete] = useState<DeviceDto | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   async function loadDevices() {
     setIsLoading(true)
@@ -52,6 +54,26 @@ function DevicesPage() {
       setError(getApiErrorMessage(submitError, 'No se pudo crear el dispositivo'))
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handleDeleteDevice() {
+    if (!deviceToDelete) {
+      return
+    }
+
+    setIsDeleting(true)
+    setError(null)
+
+    try {
+      await devicesApi.deleteDevice(deviceToDelete.id)
+      setCreatedDevice(null)
+      setDeviceToDelete(null)
+      await loadDevices()
+    } catch (deleteError) {
+      setError(getApiErrorMessage(deleteError, 'No se pudo eliminar el dispositivo'))
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -148,15 +170,66 @@ function DevicesPage() {
                     <div>Creado: {formatDateTime(device.createdAtUtc)}</div>
                     <div>Última conexión: {formatDateTime(device.lastSeenAtUtc)}</div>
                   </div>
-                  <Link to={`/devices/${device.id}`} className="btn btn-outline-primary mt-auto">
-                    Ver detalle
-                  </Link>
+                  <div className="d-grid gap-2 mt-auto">
+                    <Link to={`/devices/${device.id}`} className="btn btn-outline-primary">
+                      Ver detalle
+                    </Link>
+                    <button
+                      type="button"
+                      className="btn btn-outline-danger"
+                      onClick={() => setDeviceToDelete(device)}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {deviceToDelete ? (
+        <div className="modal-backdrop-custom" role="presentation">
+          <div className="modal-dialog modal-dialog-centered" role="dialog" aria-modal="true" aria-labelledby="delete-device-title">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h2 id="delete-device-title" className="modal-title h5">
+                  Eliminar dispositivo
+                </h2>
+                <button
+                  type="button"
+                  className="btn-close"
+                  aria-label="Cerrar"
+                  onClick={() => setDeviceToDelete(null)}
+                  disabled={isDeleting}
+                />
+              </div>
+              <div className="modal-body">
+                <p>
+                  Se eliminara el dispositivo <strong>{deviceToDelete.name}</strong>.
+                </p>
+                <p className="text-secondary mb-0">
+                  Id tecnico: <code>{deviceToDelete.id}</code>
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary"
+                  onClick={() => setDeviceToDelete(null)}
+                  disabled={isDeleting}
+                >
+                  Cancelar
+                </button>
+                <button type="button" className="btn btn-danger" onClick={handleDeleteDevice} disabled={isDeleting}>
+                  {isDeleting ? 'Eliminando...' : 'Eliminar dispositivo'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

@@ -106,9 +106,10 @@ public sealed class AnalyticsService(AnalyticsReadDbContext dbContext) : IAnalyt
 
     public async Task<IReadOnlyList<LevelSummaryResponse>> GetLevelsSummaryAsync(string deviceId, DateTime? fromUtc, DateTime? toUtc, CancellationToken cancellationToken)
     {
-        var measurements = await QueryMeasurements(deviceId, fromUtc ?? DateTime.UtcNow.Date, toUtc ?? DateTime.UtcNow).Select(item => item.Id).ToListAsync(cancellationToken);
-        return await dbContext.Levels.AsNoTracking()
-            .Where(level => measurements.Contains(level.MeasurementId))
+        var measurements = QueryMeasurements(deviceId, fromUtc ?? DateTime.UtcNow.Date, toUtc ?? DateTime.UtcNow);
+        return await (from level in dbContext.Levels.AsNoTracking()
+            join measurement in measurements on level.MeasurementId equals measurement.Id
+            select level)
             .GroupBy(level => level.SensorName)
             .Select(group => new LevelSummaryResponse(group.Key, group.Count(level => level.IsActive), group.Count(level => !level.IsActive)))
             .ToListAsync(cancellationToken);
@@ -119,8 +120,10 @@ public sealed class AnalyticsService(AnalyticsReadDbContext dbContext) : IAnalyt
         var from = fromUtc ?? DateTime.UtcNow.Date;
         var to = toUtc ?? DateTime.UtcNow;
         var measurements = await QueryMeasurements(deviceId, from, to).OrderBy(item => item.TimestampUtc).ToListAsync(cancellationToken);
-        var snapshots = await dbContext.Actuators.AsNoTracking()
-            .Where(snapshot => measurements.Select(item => item.Id).Contains(snapshot.MeasurementId))
+        var filteredMeasurements = QueryMeasurements(deviceId, from, to);
+        var snapshots = await (from snapshot in dbContext.Actuators.AsNoTracking()
+            join measurement in filteredMeasurements on snapshot.MeasurementId equals measurement.Id
+            select snapshot)
             .ToListAsync(cancellationToken);
 
         return snapshots.GroupBy(snapshot => snapshot.ActuatorName)
@@ -161,9 +164,10 @@ public sealed class AnalyticsService(AnalyticsReadDbContext dbContext) : IAnalyt
             return new AnalyticsSummaryResponse(deviceId, from, to, 0, 0, 0, 0, 0, 0, null, []);
         }
 
-        var measurementIds = measurements.Select(item => item.Id).ToList();
-        var snapshots = await dbContext.Actuators.AsNoTracking()
-            .Where(snapshot => measurementIds.Contains(snapshot.MeasurementId))
+        var filteredMeasurements = QueryMeasurements(deviceId, from, to);
+        var snapshots = await (from snapshot in dbContext.Actuators.AsNoTracking()
+            join measurement in filteredMeasurements on snapshot.MeasurementId equals measurement.Id
+            select snapshot)
             .ToListAsync(cancellationToken);
 
         var totalLiters = measurements.Max(item => item.TotalLiters) - measurements.Min(item => item.TotalLiters);

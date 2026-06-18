@@ -8,6 +8,7 @@ import type { DeviceDto } from '../types/devices'
 import type { MeasurementDto } from '../types/telemetry'
 import { formatDateTime, toLocalDateTimeInputValue, toUtcIsoOrUndefined } from '../utils/dateFormat'
 import { formatFlow, formatLiters } from '../utils/numberFormat'
+import { formatActuatorName, formatSensorName } from '../utils/telemetryLabels'
 
 const pageSize = 10
 
@@ -177,9 +178,15 @@ function TelemetryPage() {
                         <td>{formatFlow(measurement.flowLpm)}</td>
                         <td>{formatLiters(measurement.totalLiters)}</td>
                         <td>{measurement.pumpOn ? 'Sí' : 'No'}</td>
-                        <td>{measurement.levels.map((level) => `${level.name}: ${level.isActive ? 'On' : 'Off'}`).join(', ')}</td>
                         <td>
-                          {measurement.actuators.map((actuator) => `${actuator.name}: ${actuator.isOn ? 'On' : 'Off'}`).join(', ')}
+                          {measurement.levels
+                            .map((level) => `${formatSensorName(level.name)}: ${level.isActive ? 'Activo' : 'Inactivo'}`)
+                            .join(', ')}
+                        </td>
+                        <td>
+                          {measurement.actuators
+                            .map((actuator) => `${formatActuatorName(actuator.name)}: ${actuator.isOn ? 'Encendido' : 'Apagado'}`)
+                            .join(', ')}
                         </td>
                       </tr>
                     ))}

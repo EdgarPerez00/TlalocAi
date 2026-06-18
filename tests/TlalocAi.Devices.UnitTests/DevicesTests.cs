@@ -36,6 +36,20 @@ public class DevicesTests
         Assert.Single(await service.GetActuatorsAsync("raspberry-calle-01", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Delete_Device_Removes_Device_And_Invalidates_ApiKey()
+    {
+        await using var db = CreateDbContext();
+        var service = new DevicesService(db);
+        var created = await service.CreateDeviceAsync(new CreateDeviceRequest("raspberry-calle-01", "Raspberry Calle", null), CancellationToken.None);
+
+        var deleted = await service.DeleteDeviceAsync("raspberry-calle-01", CancellationToken.None);
+
+        Assert.True(deleted.IsSuccess);
+        Assert.Empty(await service.GetDevicesAsync(CancellationToken.None));
+        Assert.False(await service.ValidateApiKeyAsync("raspberry-calle-01", created.Value!.ApiKey, CancellationToken.None));
+    }
+
     private static DevicesDbContext CreateDbContext() =>
         new(new DbContextOptionsBuilder<DevicesDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 }

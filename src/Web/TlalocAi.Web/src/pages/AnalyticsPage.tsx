@@ -15,6 +15,7 @@ import type {
 import type { DeviceDto } from '../types/devices'
 import { formatDateTime, toLocalDateTimeInputValue, toUtcIsoOrUndefined } from '../utils/dateFormat'
 import { formatDurationSeconds, formatFlow, formatInteger, formatLiters } from '../utils/numberFormat'
+import { formatActuatorName, formatSensorName } from '../utils/telemetryLabels'
 
 function AnalyticsPage() {
   const defaultTo = toLocalDateTimeInputValue(new Date())
@@ -212,7 +213,7 @@ function AnalyticsPage() {
                     <tbody>
                       {levelSummary.map((item) => (
                         <tr key={item.name}>
-                          <td>{item.name}</td>
+                          <td>{formatSensorName(item.name)}</td>
                           <td>{formatInteger(item.activeCount)}</td>
                           <td>{formatInteger(item.inactiveCount)}</td>
                         </tr>
@@ -247,7 +248,7 @@ function AnalyticsPage() {
                     <tbody>
                       {actuatorSummary.map((item) => (
                         <tr key={item.name}>
-                          <td>{item.name}</td>
+                          <td>{formatActuatorName(item.name)}</td>
                           <td>{formatInteger(item.onCount)}</td>
                           <td>{formatInteger(item.offCount)}</td>
                           <td>{formatDurationSeconds(item.activeSeconds)}</td>

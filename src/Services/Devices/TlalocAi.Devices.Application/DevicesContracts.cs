@@ -29,6 +29,7 @@ public interface IDevicesService
     Task<Result<DeviceCreatedResponse>> CreateDeviceAsync(CreateDeviceRequest request, CancellationToken cancellationToken);
     Task<IReadOnlyList<DeviceResponse>> GetDevicesAsync(CancellationToken cancellationToken);
     Task<Result<DeviceResponse>> GetDeviceAsync(string deviceId, CancellationToken cancellationToken);
+    Task<Result<DeviceResponse>> DeleteDeviceAsync(string deviceId, CancellationToken cancellationToken);
     Task<Result<RotateApiKeyResponse>> RotateApiKeyAsync(string deviceId, CancellationToken cancellationToken);
     Task<Result<DeviceHeartbeatResponse>> RegisterHeartbeatAsync(string deviceId, DeviceHeartbeatRequest request, string apiKey, string? observedPublicIpAddress, CancellationToken cancellationToken);
     Task<Result<SensorResponse>> CreateSensorAsync(string deviceId, CreateSensorRequest request, CancellationToken cancellationToken);

@@ -31,6 +31,13 @@ export function createDevice(data: CreateDeviceRequest): Promise<DeviceCreatedDt
   })
 }
 
+export function deleteDevice(deviceId: string): Promise<DeviceDto> {
+  return request<DeviceDto>('devices', {
+    method: 'DELETE',
+    url: `/api/devices/${deviceId}`,
+  })
+}
+
 export function createSensor(deviceId: string, data: CreateSensorRequest): Promise<SensorDto> {
   return request<SensorDto>('devices', {
     method: 'POST',
