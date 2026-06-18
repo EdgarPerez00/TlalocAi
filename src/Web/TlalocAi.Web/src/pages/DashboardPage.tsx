@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getApiErrorMessage } from '../api/apiClient'
 import * as analyticsApi from '../api/analyticsApi'
 import * as devicesApi from '../api/devicesApi'
@@ -15,6 +15,8 @@ import type { MeasurementDto } from '../types/telemetry'
 import { formatDateTime } from '../utils/dateFormat'
 import { formatFlow, formatLiters } from '../utils/numberFormat'
 
+const refreshIntervalMs = 5000
+
 function DashboardPage() {
   const [devices, setDevices] = useState<DeviceDto[]>([])
   const [selectedDeviceId, setSelectedDeviceId] = useState('')
@@ -26,6 +28,52 @@ function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
 
   const selectedDevice = devices.find((device) => device.id === selectedDeviceId) ?? null
+
+  const loadDashboardData = useCallback(
+    async (showLoading = false) => {
+      if (!selectedDeviceId) {
+        return
+      }
+
+      const toUtc = new Date().toISOString()
+      const fromUtc = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+      if (showLoading) {
+        setIsLoading(true)
+      }
+
+      setError(null)
+
+      try {
+        const [latestResult, summaryResult, flowSeriesResult, actuatorsResult] = await Promise.allSettled([
+          telemetryApi.getLatestTelemetry(selectedDeviceId),
+          analyticsApi.getAnalyticsSummary({ deviceId: selectedDeviceId, fromUtc, toUtc }),
+          analyticsApi.getFlowSeries({ deviceId: selectedDeviceId, fromUtc, toUtc, bucketSeconds: 60 }),
+          devicesApi.getActuators(selectedDeviceId),
+        ])
+
+        setLatestMeasurement(latestResult.status === 'fulfilled' ? latestResult.value : null)
+        setSummary(summaryResult.status === 'fulfilled' ? summaryResult.value : null)
+        setFlowSeries(flowSeriesResult.status === 'fulfilled' ? flowSeriesResult.value : [])
+        setActuators(actuatorsResult.status === 'fulfilled' ? actuatorsResult.value : [])
+
+        if (actuatorsResult.status === 'rejected') {
+          setError(getApiErrorMessage(actuatorsResult.reason, 'No se pudo cargar el dashboard'))
+        }
+      } catch (loadError) {
+        setLatestMeasurement(null)
+        setSummary(null)
+        setFlowSeries([])
+        setActuators([])
+        setError(getApiErrorMessage(loadError, 'No se pudo cargar el dashboard'))
+      } finally {
+        if (showLoading) {
+          setIsLoading(false)
+        }
+      }
+    },
+    [selectedDeviceId],
+  )
 
   useEffect(() => {
     async function loadDevices() {
@@ -54,42 +102,13 @@ function DashboardPage() {
       return
     }
 
-    const toUtc = new Date().toISOString()
-    const fromUtc = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    void loadDashboardData(true)
+    const interval = window.setInterval(() => {
+      void loadDashboardData()
+    }, refreshIntervalMs)
 
-    async function loadDashboardData() {
-      setIsLoading(true)
-      setError(null)
-
-      try {
-        const [latestResult, summaryResult, flowSeriesResult, actuatorsResult] = await Promise.allSettled([
-          telemetryApi.getLatestTelemetry(selectedDeviceId),
-          analyticsApi.getAnalyticsSummary({ deviceId: selectedDeviceId, fromUtc, toUtc }),
-          analyticsApi.getFlowSeries({ deviceId: selectedDeviceId, fromUtc, toUtc, bucketSeconds: 60 }),
-          devicesApi.getActuators(selectedDeviceId),
-        ])
-
-        setLatestMeasurement(latestResult.status === 'fulfilled' ? latestResult.value : null)
-        setSummary(summaryResult.status === 'fulfilled' ? summaryResult.value : null)
-        setFlowSeries(flowSeriesResult.status === 'fulfilled' ? flowSeriesResult.value : [])
-        setActuators(actuatorsResult.status === 'fulfilled' ? actuatorsResult.value : [])
-
-        if (actuatorsResult.status === 'rejected') {
-          setError(getApiErrorMessage(actuatorsResult.reason, 'No se pudo cargar el dashboard'))
-        }
-      } catch (loadError) {
-        setLatestMeasurement(null)
-        setSummary(null)
-        setFlowSeries([])
-        setActuators([])
-        setError(getApiErrorMessage(loadError, 'No se pudo cargar el dashboard'))
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    void loadDashboardData()
-  }, [selectedDeviceId])
+    return () => window.clearInterval(interval)
+  }, [loadDashboardData, selectedDeviceId])
 
   if (isLoading && devices.length === 0) {
     return <LoadingSpinner message="Cargando dashboard..." />

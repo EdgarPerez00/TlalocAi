@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getApiErrorMessage } from '../api/apiClient'
 import * as analyticsApi from '../api/analyticsApi'
 import * as devicesApi from '../api/devicesApi'
@@ -17,6 +17,8 @@ import { formatDateTime, toLocalDateTimeInputValue, toUtcIsoOrUndefined } from '
 import { formatDurationSeconds, formatFlow, formatInteger, formatLiters } from '../utils/numberFormat'
 import { formatActuatorName, formatSensorName } from '../utils/telemetryLabels'
 
+const refreshIntervalMs = 5000
+
 function AnalyticsPage() {
   const defaultTo = toLocalDateTimeInputValue(new Date())
   const defaultFrom = toLocalDateTimeInputValue(new Date(Date.now() - 24 * 60 * 60 * 1000))
@@ -31,6 +33,7 @@ function AnalyticsPage() {
   const [actuatorSummary, setActuatorSummary] = useState<ActuatorSummaryDto[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [followNow, setFollowNow] = useState(true)
 
   useEffect(() => {
     async function loadDevices() {
@@ -50,17 +53,18 @@ function AnalyticsPage() {
     void loadDevices()
   }, [])
 
-  async function handleSearch(event?: React.FormEvent<HTMLFormElement>) {
-    event?.preventDefault()
-
+  const loadAnalytics = useCallback(async (showLoading = false) => {
     if (!selectedDeviceId) {
       return
     }
 
     const from = toUtcIsoOrUndefined(fromUtc)
-    const to = toUtcIsoOrUndefined(toUtc)
+    const to = followNow ? new Date().toISOString() : toUtcIsoOrUndefined(toUtc)
 
-    setIsLoading(true)
+    if (showLoading) {
+      setIsLoading(true)
+    }
+
     setError(null)
 
     try {
@@ -82,15 +86,27 @@ function AnalyticsPage() {
       setActuatorSummary([])
       setError(getApiErrorMessage(searchError, 'No se pudieron consultar las estadísticas'))
     } finally {
-      setIsLoading(false)
+      if (showLoading) {
+        setIsLoading(false)
+      }
     }
+  }, [followNow, fromUtc, selectedDeviceId, toUtc])
+
+  function handleSearch(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault()
+    void loadAnalytics(true)
   }
 
   useEffect(() => {
     if (selectedDeviceId) {
-      void handleSearch()
+      void loadAnalytics(true)
+      const interval = window.setInterval(() => {
+        void loadAnalytics()
+      }, refreshIntervalMs)
+
+      return () => window.clearInterval(interval)
     }
-  }, [selectedDeviceId])
+  }, [loadAnalytics, selectedDeviceId])
 
   if (isLoading && devices.length === 0) {
     return <LoadingSpinner message="Cargando estadísticas..." />
@@ -151,7 +167,10 @@ function AnalyticsPage() {
                 type="datetime-local"
                 className="form-control"
                 value={toUtc}
-                onChange={(event) => setToUtc(event.target.value)}
+                onChange={(event) => {
+                  setFollowNow(false)
+                  setToUtc(event.target.value)
+                }}
               />
             </div>
             <div className="col-12">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getApiErrorMessage } from '../api/apiClient'
 import * as devicesApi from '../api/devicesApi'
 import * as telemetryApi from '../api/telemetryApi'
@@ -11,6 +11,7 @@ import { formatFlow, formatLiters } from '../utils/numberFormat'
 import { formatActuatorName, formatSensorName } from '../utils/telemetryLabels'
 
 const pageSize = 10
+const refreshIntervalMs = 5000
 
 function TelemetryPage() {
   const defaultTo = toLocalDateTimeInputValue(new Date())
@@ -24,6 +25,7 @@ function TelemetryPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [page, setPage] = useState(1)
+  const [followNow, setFollowNow] = useState(true)
 
   useEffect(() => {
     async function loadDevices() {
@@ -43,37 +45,55 @@ function TelemetryPage() {
     void loadDevices()
   }, [])
 
-  async function handleSearch(event?: React.FormEvent<HTMLFormElement>) {
-    event?.preventDefault()
-
+  const loadTelemetry = useCallback(async (showLoading = false, resetPage = false) => {
     if (!selectedDeviceId) {
       return
     }
 
-    setIsLoading(true)
+    const effectiveTo = followNow ? new Date() : null
+
+    if (showLoading) {
+      setIsLoading(true)
+    }
+
     setError(null)
-    setPage(1)
+
+    if (resetPage) {
+      setPage(1)
+    }
 
     try {
       const response = await telemetryApi.getTelemetryHistory({
         deviceId: selectedDeviceId,
         fromUtc: toUtcIsoOrUndefined(fromUtc),
-        toUtc: toUtcIsoOrUndefined(toUtc),
+        toUtc: effectiveTo ? effectiveTo.toISOString() : toUtcIsoOrUndefined(toUtc),
       })
       setMeasurements(response)
     } catch (searchError) {
       setMeasurements([])
       setError(getApiErrorMessage(searchError, 'No se pudo consultar la telemetría'))
     } finally {
-      setIsLoading(false)
+      if (showLoading) {
+        setIsLoading(false)
+      }
     }
+  }, [followNow, fromUtc, selectedDeviceId, toUtc])
+
+  function handleSearch(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault()
+    void loadTelemetry(true, true)
   }
 
   useEffect(() => {
     if (selectedDeviceId) {
-      void handleSearch()
+      void loadTelemetry(true, true)
+      const interval = window.setInterval(() => {
+        void loadTelemetry()
+      }, refreshIntervalMs)
+
+      return () => window.clearInterval(interval)
     }
-  }, [selectedDeviceId])
+  }, [loadTelemetry, selectedDeviceId])
 
   const totalPages = Math.max(1, Math.ceil(measurements.length / pageSize))
   const currentPageItems = measurements.slice((page - 1) * pageSize, page * pageSize)
@@ -137,7 +157,10 @@ function TelemetryPage() {
                 type="datetime-local"
                 className="form-control"
                 value={toUtc}
-                onChange={(event) => setToUtc(event.target.value)}
+                onChange={(event) => {
+                  setFollowNow(false)
+                  setToUtc(event.target.value)
+                }}
               />
             </div>
             <div className="col-12">
