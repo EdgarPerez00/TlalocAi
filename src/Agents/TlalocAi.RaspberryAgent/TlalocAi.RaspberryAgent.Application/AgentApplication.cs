@@ -183,6 +183,8 @@ public sealed class SimulatedPlantScenarioService
     private decimal _lastLitersPerMinute;
     private bool _suppressFlowThisCycle;
     private int _noFlowHoldCyclesRemaining;
+    private double _simulatedTowerLevel = 3.0d;
+    private double _simulatedCisternLevel = 4.0d;
 
     public SimulatedPlantScenarioService(TlalocAgentOptions options)
     {
@@ -226,10 +228,9 @@ public sealed class SimulatedPlantScenarioService
             var events = new List<string>();
             var desiredPumps = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             var desiredValves = new Dictionary<int, bool>();
-            var nominalTowerLevel = 2 + (int)(_cycleNumber % 4);
-            var nominalCisternLevel = 2 + (int)((_cycleNumber + 2) % 4);
-            var towerLevel = nominalTowerLevel;
-            var cisternLevel = nominalCisternLevel;
+            UpdateSmoothReservoirLevels();
+            var towerLevel = ToDiscreteLevel(_simulatedTowerLevel);
+            var cisternLevel = ToDiscreteLevel(_simulatedCisternLevel);
 
             ResetContainers();
 
@@ -237,16 +238,19 @@ public sealed class SimulatedPlantScenarioService
             {
                 if (_options.Simulation.EnableCisternFullScenario && (_cycleNumber / Math.Max(1, _options.Simulation.InjectCriticalLevelEveryCycles)) % 3 == 0)
                 {
+                    _simulatedCisternLevel = Math.Max(_simulatedCisternLevel, 4.65d);
                     cisternLevel = 5;
                     events.Add("Simulated cistern full safety scenario.");
                 }
                 else if ((_cycleNumber / Math.Max(1, _options.Simulation.InjectCriticalLevelEveryCycles)) % 2 == 0)
                 {
+                    _simulatedCisternLevel = Math.Min(_simulatedCisternLevel, 1.35d);
                     cisternLevel = 1;
                     events.Add("Simulated cistern critical level.");
                 }
                 else
                 {
+                    _simulatedTowerLevel = Math.Min(_simulatedTowerLevel, 1.35d);
                     towerLevel = 1;
                     events.Add("Simulated tower critical level.");
                 }
@@ -401,6 +405,49 @@ public sealed class SimulatedPlantScenarioService
             _containerFullStates[containerId] = ((_cycleNumber + containerId) % 13) == 0;
         }
     }
+
+    private void UpdateSmoothReservoirLevels()
+    {
+        var towerPumpOn = _pumpStates.TryGetValue("tower", out var towerOn) && towerOn;
+        var cisternPumpOn = _pumpStates.TryGetValue("cistern", out var cisternOn) && cisternOn;
+        var openValveCount = _valveRequestedStates.Count(item => item.Value && !IsValveLockedUnsafe(item.Key));
+        var cycleSeconds = Math.Max(1, _options.Simulation.CycleSeconds);
+        var scale = Math.Clamp(cycleSeconds / 2.0d, 0.5d, 2.0d);
+        var towerWave = Math.Sin(_cycleNumber / 10.0d) * 0.035d;
+        var cisternWave = Math.Cos((_cycleNumber + 3) / 12.0d) * 0.025d;
+
+        var towerDelta = towerWave;
+        towerDelta += towerPumpOn ? 0.08d : -0.025d;
+        towerDelta -= openValveCount * 0.018d;
+
+        var cisternDelta = cisternWave;
+        cisternDelta += cisternPumpOn ? 0.07d : -0.018d;
+        cisternDelta -= towerPumpOn ? 0.035d : 0.0d;
+
+        if (_simulatedTowerLevel < 2.2d)
+        {
+            towerDelta += 0.11d;
+        }
+        else if (_simulatedTowerLevel > 4.4d)
+        {
+            towerDelta -= 0.06d;
+        }
+
+        if (_simulatedCisternLevel < 2.2d)
+        {
+            cisternDelta += 0.10d;
+        }
+        else if (_simulatedCisternLevel > 4.4d)
+        {
+            cisternDelta -= 0.055d;
+        }
+
+        _simulatedTowerLevel = Math.Clamp(_simulatedTowerLevel + towerDelta * scale, 0.75d, 4.85d);
+        _simulatedCisternLevel = Math.Clamp(_simulatedCisternLevel + cisternDelta * scale, 0.75d, 4.85d);
+    }
+
+    private static int ToDiscreteLevel(double level) =>
+        Math.Clamp((int)Math.Round(level, MidpointRounding.AwayFromZero), 0, 5);
 
     private decimal CalculateFlow(bool anyPumpOn, bool anyValveOpen, bool suppressFlow)
     {
