@@ -106,6 +106,36 @@ Flujos principales del frontend:
 - Control de bomba y valvulas en `/control`.
 - Telemetria y estadisticas en `/telemetry` y `/analytics`.
 
+## Worker Simulado
+
+El proyecto `src/Agents/TlalocAi.RaspberryAgent/TlalocAi.RaspberryAgent.Worker` puede ejecutarse como medidor ficticio sin hardware. No crea otro microservicio: usa el mismo Worker, el mismo flujo de heartbeat/telemetria/comandos y publica hacia el Gateway con la API key de un dispositivo existente.
+
+Flujo rapido:
+
+1. Levanta la plataforma y el frontend.
+2. Crea un dispositivo dummy en `/devices`, por ejemplo `dummy-meter-001`, y copia la API key generada.
+3. Edita `src/Agents/TlalocAi.RaspberryAgent/TlalocAi.RaspberryAgent.Worker/appsettings.Simulation.json` con:
+   - `Agent:DeviceId=dummy-meter-001`
+   - `Backend:BaseUrl=http://localhost:5100/`
+   - `Backend:ApiKey={apiKey}`
+   - `Simulation:Enabled=true`
+4. Ejecuta:
+
+PowerShell:
+
+```powershell
+$env:DOTNET_ENVIRONMENT = "Simulation"
+dotnet run --project ./src/Agents/TlalocAi.RaspberryAgent/TlalocAi.RaspberryAgent.Worker/TlalocAi.RaspberryAgent.Worker.csproj
+```
+
+Bash:
+
+```bash
+DOTNET_ENVIRONMENT=Simulation dotnet run --project ./src/Agents/TlalocAi.RaspberryAgent/TlalocAi.RaspberryAgent.Worker/TlalocAi.RaspberryAgent.Worker.csproj
+```
+
+En `/monitoring` se observan cambios en torre, cisterna, caudal, litros acumulados, 2 bombas, 4 electrovalvulas, 16 contenedores y alertas simuladas como no-flow, niveles criticos y valvulas bloqueadas. La guia completa esta en `README_RASPBERRY_AGENT.md`.
+
 ## Base de Datos y Migraciones
 
 Las migraciones se aplican sobre `localhost:3306/tlalocai_databse`. Para aplicarlas:

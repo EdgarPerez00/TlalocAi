@@ -14,6 +14,7 @@ public static class AgentInfrastructureExtensions
         services.AddSingleton(options);
         services.AddSingleton<ITelemetryQueue, OfflineTelemetryQueueService>();
         services.AddSingleton<ISafetyEvaluationService, DefaultSafetyEvaluationService>();
+        services.AddSingleton<SimulatedPlantScenarioService>();
         services.AddSingleton<FlowSensorService>();
         services.AddSingleton<PumpControlService>();
         services.AddSingleton<ValveCommandService>();
@@ -52,7 +53,7 @@ public static class AgentInfrastructureExtensions
     }
 
     private static bool IsSimulation(TlalocAgentOptions options) =>
-        options.Agent.Mode.Equals("Simulation", StringComparison.OrdinalIgnoreCase);
+        options.Simulation.Enabled || options.Agent.Mode.Equals("Simulation", StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed class SimulatedGpioState
@@ -69,10 +70,14 @@ public sealed class SimulatedGpioState
 public sealed class SimulatedGpioInputReader : IGpioInputReader
 {
     private readonly SimulatedGpioState _state;
+    private readonly SimulatedPlantScenarioService _simulation;
+    private readonly TlalocAgentOptions _options;
 
-    public SimulatedGpioInputReader(SimulatedGpioState state, TlalocAgentOptions options)
+    public SimulatedGpioInputReader(SimulatedGpioState state, TlalocAgentOptions options, SimulatedPlantScenarioService simulation)
     {
         _state = state;
+        _options = options;
+        _simulation = simulation;
         foreach (var pin in options.Tower.LevelSensorPins.Concat(options.Cistern.LevelSensorPins))
         {
             _state.SetInput(pin, true);
@@ -84,37 +89,88 @@ public sealed class SimulatedGpioInputReader : IGpioInputReader
         }
     }
 
-    public Task<bool> ReadAsync(int pin, CancellationToken cancellationToken) =>
-        Task.FromResult(_state.ReadInput(pin));
+    public Task<bool> ReadAsync(int pin, CancellationToken cancellationToken)
+    {
+        var towerIndex = Array.IndexOf(_options.Tower.LevelSensorPins, pin);
+        if (towerIndex >= 0)
+        {
+            var value = _simulation.ReadLevelSensor("tower", towerIndex);
+            _state.SetInput(pin, value);
+            return Task.FromResult(value);
+        }
+
+        var cisternIndex = Array.IndexOf(_options.Cistern.LevelSensorPins, pin);
+        if (cisternIndex >= 0)
+        {
+            var value = _simulation.ReadLevelSensor("cistern", cisternIndex);
+            _state.SetInput(pin, value);
+            return Task.FromResult(value);
+        }
+
+        foreach (var board in _options.Esp32Boards)
+        {
+            var containerIndex = Array.IndexOf(board.ContainerStatusInputPinsOnRaspberry, pin);
+            if (containerIndex >= 0 && containerIndex < board.ControlsContainers.Length)
+            {
+                var value = _simulation.IsContainerFull(board.ControlsContainers[containerIndex]);
+                _state.SetInput(pin, value);
+                return Task.FromResult(value);
+            }
+        }
+
+        return Task.FromResult(_state.ReadInput(pin));
+    }
 }
 
-public sealed class SimulatedGpioOutputWriter(SimulatedGpioState state) : IGpioOutputWriter
+public sealed class SimulatedGpioOutputWriter : IGpioOutputWriter
 {
+    private readonly SimulatedGpioState _state;
+    private readonly TlalocAgentOptions? _options;
+    private readonly SimulatedPlantScenarioService? _simulation;
+
+    public SimulatedGpioOutputWriter(SimulatedGpioState state)
+    {
+        _state = state;
+    }
+
+    public SimulatedGpioOutputWriter(SimulatedGpioState state, TlalocAgentOptions options, SimulatedPlantScenarioService simulation)
+    {
+        _state = state;
+        _options = options;
+        _simulation = simulation;
+    }
+
     public Task WriteAsync(int pin, bool isOn, CancellationToken cancellationToken)
     {
-        state.SetOutput(pin, isOn);
+        _state.SetOutput(pin, isOn);
+        if (_options is not null && _simulation is not null)
+        {
+            if (pin == _options.Tower.PumpOutputPin)
+            {
+                _simulation.SetPumpState("tower", isOn);
+            }
+            else if (pin == _options.Cistern.PumpOutputPin)
+            {
+                _simulation.SetPumpState("cistern", isOn);
+            }
+        }
+
         return Task.CompletedTask;
     }
 
-    public bool GetLastState(int pin) => state.ReadOutput(pin);
+    public bool GetLastState(int pin) => _state.ReadOutput(pin);
 }
 
-public sealed class SimulatedFlowPulseCounter : IFlowPulseCounter
+public sealed class SimulatedFlowPulseCounter(SimulatedPlantScenarioService simulation) : IFlowPulseCounter
 {
-    private long _pulses;
-
-    public Task<long> GetPulsesAsync(CancellationToken cancellationToken)
-    {
-        _pulses += 45;
-        return Task.FromResult(_pulses);
-    }
+    public Task<long> GetPulsesAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(simulation.GetPulses());
 }
 
-public sealed class SimulatedEsp32Client(TlalocAgentOptions options) : IEsp32Client
+public sealed class SimulatedEsp32Client(TlalocAgentOptions options, SimulatedPlantScenarioService simulation) : IEsp32Client
 {
-    private readonly Dictionary<string, BoardState> _boards = options.Esp32Boards.ToDictionary(
+    private readonly Dictionary<string, Esp32BoardOptions> _boards = options.Esp32Boards.ToDictionary(
         board => board.BoardId,
-        board => new BoardState(board.ControlsContainers, board.ControlsValves),
         StringComparer.OrdinalIgnoreCase);
 
     public Task<Esp32BoardSnapshot> GetStatusAsync(string boardId, CancellationToken cancellationToken)
@@ -124,7 +180,7 @@ public sealed class SimulatedEsp32Client(TlalocAgentOptions options) : IEsp32Cli
             throw new InvalidOperationException($"Unknown simulated ESP32 board '{boardId}'.");
         }
 
-        return Task.FromResult(board.ToSnapshot(boardId));
+        return Task.FromResult(ToSnapshot(board));
     }
 
     public Task<Esp32CommandResult> SendValveCommandAsync(string boardId, int localValveId, AgentCommandType commandType, CancellationToken cancellationToken)
@@ -134,92 +190,38 @@ public sealed class SimulatedEsp32Client(TlalocAgentOptions options) : IEsp32Cli
             return Task.FromResult(new Esp32CommandResult(false, $"Unknown simulated ESP32 board '{boardId}'."));
         }
 
-        var result = commandType == AgentCommandType.Open
-            ? board.OpenValve(localValveId)
-            : board.CloseValve(localValveId);
+        if (localValveId <= 0 || localValveId > board.ControlsValves.Length)
+        {
+            return Task.FromResult(new Esp32CommandResult(false, "INVALID_VALVE"));
+        }
 
-        return Task.FromResult(new Esp32CommandResult(result.Success, result.Message, board.ToSnapshot(boardId)));
+        var valveId = board.ControlsValves[localValveId - 1];
+        if (commandType == AgentCommandType.Open)
+        {
+            var valve = simulation.GetValveSnapshot(valveId);
+            if (valve.IsLocked)
+            {
+                simulation.SetValveRequestedState(valveId, false);
+                return Task.FromResult(new Esp32CommandResult(false, valve.LockReason ?? "VALVE_LOCKED_OR_CONTAINER_FULL", ToSnapshot(board)));
+            }
+
+            simulation.SetValveRequestedState(valveId, true);
+            return Task.FromResult(new Esp32CommandResult(true, "Valve opened.", ToSnapshot(board)));
+        }
+
+        simulation.SetValveRequestedState(valveId, false);
+        return Task.FromResult(new Esp32CommandResult(true, "Valve closed.", ToSnapshot(board)));
     }
 
-    private sealed class BoardState
+    private Esp32BoardSnapshot ToSnapshot(Esp32BoardOptions board)
     {
-        private readonly int[] _containerIds;
-        private readonly int[] _valveIds;
-        private readonly bool[] _containerFull;
-        private readonly bool[] _valveOpen;
-        private readonly bool[] _valveLocked;
-
-        public BoardState(int[] containerIds, int[] valveIds)
-        {
-            _containerIds = containerIds;
-            _valveIds = valveIds;
-            _containerFull = new bool[containerIds.Length];
-            _valveOpen = new bool[valveIds.Length];
-            _valveLocked = new bool[valveIds.Length];
-        }
-
-        public (bool Success, string Message) OpenValve(int localValveId)
-        {
-            var index = localValveId - 1;
-            if (index < 0 || index >= _valveIds.Length)
-            {
-                return (false, "INVALID_VALVE");
-            }
-
-            UpdateLocks(index);
-            if (_valveLocked[index])
-            {
-                _valveOpen[index] = false;
-                return (false, "VALVE_LOCKED_OR_CONTAINER_FULL");
-            }
-
-            _valveOpen[index] = true;
-            return (true, "Valve opened.");
-        }
-
-        public (bool Success, string Message) CloseValve(int localValveId)
-        {
-            var index = localValveId - 1;
-            if (index < 0 || index >= _valveIds.Length)
-            {
-                return (false, "INVALID_VALVE");
-            }
-
-            _valveOpen[index] = false;
-            return (true, "Valve closed.");
-        }
-
-        public Esp32BoardSnapshot ToSnapshot(string boardId)
-        {
-            for (var index = 0; index < _valveIds.Length; index++)
-            {
-                UpdateLocks(index);
-            }
-
-            var containers = _containerIds.Select((id, index) => new ContainerSnapshot(id, _containerFull[index])).ToList();
-            var valves = _valveIds.Select((id, index) => new ValveSnapshot(id, _valveOpen[index], _valveLocked[index], _valveLocked[index] ? "Valve locked by simulated container fill." : null)).ToList();
-            return new Esp32BoardSnapshot(boardId, containers, valves, true);
-        }
-
-        private void UpdateLocks(int valveIndex)
-        {
-            var first = valveIndex * 2;
-            var second = first + 1;
-            var anyFull = IsContainerFull(first) || IsContainerFull(second);
-            var bothEmpty = !IsContainerFull(first) && !IsContainerFull(second);
-
-            if (anyFull)
-            {
-                _valveLocked[valveIndex] = true;
-                _valveOpen[valveIndex] = false;
-            }
-            else if (bothEmpty)
-            {
-                _valveLocked[valveIndex] = false;
-            }
-        }
-
-        private bool IsContainerFull(int index) => index >= 0 && index < _containerFull.Length && _containerFull[index];
+        var containers = board.ControlsContainers
+            .Select(containerId => new ContainerSnapshot(containerId, simulation.IsContainerFull(containerId)))
+            .ToList();
+        var valves = board.ControlsValves
+            .Select(simulation.GetValveSnapshot)
+            .ToList();
+        return new Esp32BoardSnapshot(board.BoardId, containers, valves, true);
     }
 }
 

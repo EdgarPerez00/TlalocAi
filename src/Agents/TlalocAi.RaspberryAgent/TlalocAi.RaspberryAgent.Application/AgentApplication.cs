@@ -7,6 +7,7 @@ public sealed class TlalocAgentOptions
 {
     public AgentOptions Agent { get; set; } = new();
     public BackendOptions Backend { get; set; } = new();
+    public SimulationOptions Simulation { get; set; } = new();
     public GpioOptions Gpio { get; set; } = new();
     public ReservoirHardwareOptions Tower { get; set; } = new();
     public ReservoirHardwareOptions Cistern { get; set; } = new();
@@ -31,6 +32,21 @@ public sealed class BackendOptions
     public int TelemetryIntervalSeconds { get; set; } = 2;
     public int CommandPollingIntervalMilliseconds { get; set; } = 1000;
     public bool UseSignalR { get; set; }
+}
+
+public sealed class SimulationOptions
+{
+    public bool Enabled { get; set; }
+    public string Scenario { get; set; } = "Demo";
+    public int CycleSeconds { get; set; } = 2;
+    public int InjectNoFlowEveryCycles { get; set; } = 8;
+    public int InjectCriticalLevelEveryCycles { get; set; } = 6;
+    public bool EnableNoFlowScenario { get; set; } = true;
+    public bool EnableCriticalLevelScenario { get; set; } = true;
+    public bool EnableCisternFullScenario { get; set; } = true;
+    public bool EnableValveLockScenario { get; set; } = true;
+    public bool AutoTogglePumps { get; set; } = true;
+    public bool AutoToggleValves { get; set; } = true;
 }
 
 public sealed class GpioOptions
@@ -127,6 +143,356 @@ public interface ISafetyEvaluationService
 {
     SafetyDecision EvaluateCommand(PendingDeviceCommand command, SystemSnapshot snapshot);
     IReadOnlyList<string> EvaluateFaults(SystemSnapshot snapshot);
+}
+
+public sealed record SimulatedPlantState(
+    long CycleNumber,
+    string Scenario,
+    int TowerLevel,
+    int CisternLevel,
+    decimal LitersPerMinute,
+    long Pulses,
+    IReadOnlyDictionary<string, bool> PumpStates,
+    IReadOnlyDictionary<int, bool> ValveRequestedStates,
+    IReadOnlyDictionary<int, bool> ContainerFullStates,
+    IReadOnlyList<string> Events);
+
+public sealed record SimulatedPlantCycle(
+    long CycleNumber,
+    string Scenario,
+    IReadOnlyDictionary<string, bool> DesiredPumpStates,
+    IReadOnlyDictionary<int, bool> DesiredValveStates,
+    IReadOnlyList<string> Events,
+    SimulatedPlantState State);
+
+public sealed class SimulatedPlantScenarioService
+{
+    private readonly object _gate = new();
+    private readonly TlalocAgentOptions _options;
+    private readonly Dictionary<string, bool> _pumpStates = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["tower"] = false,
+        ["cistern"] = false
+    };
+    private readonly Dictionary<int, bool> _valveRequestedStates = new();
+    private readonly Dictionary<int, bool> _containerFullStates = new();
+    private readonly Dictionary<int, int[]> _valveContainerMap = new();
+    private SimulatedPlantState _current;
+    private long _cycleNumber;
+    private long _pulses;
+    private decimal _lastLitersPerMinute;
+    private bool _suppressFlowThisCycle;
+    private int _noFlowHoldCyclesRemaining;
+
+    public SimulatedPlantScenarioService(TlalocAgentOptions options)
+    {
+        _options = options;
+        var valveIds = ResolveValveIds(options);
+        var containerIds = ResolveContainerIds(options);
+
+        foreach (var valveId in valveIds)
+        {
+            _valveRequestedStates[valveId] = false;
+        }
+
+        foreach (var containerId in containerIds)
+        {
+            _containerFullStates[containerId] = false;
+        }
+
+        BuildValveContainerMap(valveIds, containerIds);
+        _current = CreateState(0, 3, 4, 0m, []);
+    }
+
+    public SimulatedPlantState Current
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _current;
+            }
+        }
+    }
+
+    public SimulatedPlantCycle Advance()
+    {
+        lock (_gate)
+        {
+            _cycleNumber++;
+            var scenario = string.IsNullOrWhiteSpace(_options.Simulation.Scenario)
+                ? "Demo"
+                : _options.Simulation.Scenario.Trim();
+            var events = new List<string>();
+            var desiredPumps = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            var desiredValves = new Dictionary<int, bool>();
+            var nominalTowerLevel = 2 + (int)(_cycleNumber % 4);
+            var nominalCisternLevel = 2 + (int)((_cycleNumber + 2) % 4);
+            var towerLevel = nominalTowerLevel;
+            var cisternLevel = nominalCisternLevel;
+
+            ResetContainers();
+
+            if (ShouldInjectCriticalLevel())
+            {
+                if (_options.Simulation.EnableCisternFullScenario && (_cycleNumber / Math.Max(1, _options.Simulation.InjectCriticalLevelEveryCycles)) % 3 == 0)
+                {
+                    cisternLevel = 5;
+                    events.Add("Simulated cistern full safety scenario.");
+                }
+                else if ((_cycleNumber / Math.Max(1, _options.Simulation.InjectCriticalLevelEveryCycles)) % 2 == 0)
+                {
+                    cisternLevel = 1;
+                    events.Add("Simulated cistern critical level.");
+                }
+                else
+                {
+                    towerLevel = 1;
+                    events.Add("Simulated tower critical level.");
+                }
+            }
+
+            if (_options.Simulation.AutoTogglePumps)
+            {
+                desiredPumps["tower"] = !ShouldInjectCriticalLevel() && _cycleNumber % 5 is 1 or 2 or 3;
+                desiredPumps["cistern"] = cisternLevel is >= 2 and < 5 && _cycleNumber % 6 is 2 or 3 or 4;
+            }
+
+            if (_options.Simulation.AutoToggleValves)
+            {
+                foreach (var valveId in _valveRequestedStates.Keys.Order())
+                {
+                    desiredValves[valveId] = ((_cycleNumber + valveId) % 4) < 2;
+                }
+            }
+
+            if (ShouldInjectValveLock() && _valveContainerMap.Count > 0)
+            {
+                var valveId = _valveContainerMap.Keys.Order().ElementAt((int)(_cycleNumber % _valveContainerMap.Count));
+                var containerId = _valveContainerMap[valveId][0];
+                _containerFullStates[containerId] = true;
+                desiredValves[valveId] = true;
+                events.Add($"Simulated valve {valveId} blocked by full container {containerId}.");
+            }
+
+            if (ShouldInjectNoFlow())
+            {
+                _noFlowHoldCyclesRemaining = Math.Max(
+                    _noFlowHoldCyclesRemaining,
+                    (int)Math.Ceiling(_options.FlowSensor.NoFlowTimeoutSeconds / (double)Math.Max(1, _options.Simulation.CycleSeconds)) + 1);
+            }
+
+            if (_noFlowHoldCyclesRemaining > 0)
+            {
+                desiredPumps["tower"] = true;
+                _suppressFlowThisCycle = true;
+                events.Add("Simulated no-flow condition while tower pump is on.");
+                _noFlowHoldCyclesRemaining--;
+            }
+            else
+            {
+                _suppressFlowThisCycle = false;
+            }
+
+            var anyPumpOn = desiredPumps.Count > 0
+                ? desiredPumps.Values.Any(item => item)
+                : _pumpStates.Values.Any(item => item);
+            var anyValveOpen = desiredValves.Count > 0
+                ? desiredValves.Any(item => item.Value && !IsValveLockedUnsafe(item.Key))
+                : _valveRequestedStates.Any(item => item.Value && !IsValveLockedUnsafe(item.Key));
+
+            _lastLitersPerMinute = CalculateFlow(anyPumpOn, anyValveOpen, _suppressFlowThisCycle);
+            var cycleSeconds = Math.Max(1, _options.Simulation.CycleSeconds);
+            var litersThisCycle = _lastLitersPerMinute * cycleSeconds / 60m;
+            if (litersThisCycle > 0)
+            {
+                _pulses += (long)Math.Round(litersThisCycle * _options.FlowSensor.PulsesPerLiter, MidpointRounding.AwayFromZero);
+            }
+
+            _current = CreateState(_cycleNumber, towerLevel, cisternLevel, _lastLitersPerMinute, events);
+            return new SimulatedPlantCycle(_cycleNumber, scenario, desiredPumps, desiredValves, events, _current);
+        }
+    }
+
+    public void SetPumpState(string pumpId, bool isOn)
+    {
+        lock (_gate)
+        {
+            _pumpStates[NormalizePumpId(pumpId)] = isOn;
+            _current = CreateState(_current.CycleNumber, _current.TowerLevel, _current.CisternLevel, _current.LitersPerMinute, _current.Events);
+        }
+    }
+
+    public void SetValveRequestedState(int valveId, bool isOpen)
+    {
+        lock (_gate)
+        {
+            _valveRequestedStates[valveId] = isOpen && !IsValveLockedUnsafe(valveId);
+            _current = CreateState(_current.CycleNumber, _current.TowerLevel, _current.CisternLevel, _current.LitersPerMinute, _current.Events);
+        }
+    }
+
+    public bool ReadLevelSensor(string reservoirName, int sensorIndex)
+    {
+        lock (_gate)
+        {
+            var level = reservoirName.Equals("tower", StringComparison.OrdinalIgnoreCase)
+                ? _current.TowerLevel
+                : _current.CisternLevel;
+            return sensorIndex >= 0 && sensorIndex < level;
+        }
+    }
+
+    public bool IsContainerFull(int containerId)
+    {
+        lock (_gate)
+        {
+            return _containerFullStates.TryGetValue(containerId, out var isFull) && isFull;
+        }
+    }
+
+    public ValveSnapshot GetValveSnapshot(int valveId)
+    {
+        lock (_gate)
+        {
+            var isLocked = IsValveLockedUnsafe(valveId);
+            var requestedOpen = _valveRequestedStates.TryGetValue(valveId, out var isOpen) && isOpen;
+            return new ValveSnapshot(
+                valveId,
+                requestedOpen && !isLocked,
+                isLocked,
+                isLocked ? "Valve locked by simulated container fill." : null);
+        }
+    }
+
+    public long GetPulses()
+    {
+        lock (_gate)
+        {
+            return _pulses;
+        }
+    }
+
+    public bool IsPumpOn(string pumpId)
+    {
+        lock (_gate)
+        {
+            return _pumpStates.TryGetValue(NormalizePumpId(pumpId), out var isOn) && isOn;
+        }
+    }
+
+    private SimulatedPlantState CreateState(long cycleNumber, int towerLevel, int cisternLevel, decimal litersPerMinute, IReadOnlyList<string> events) =>
+        new(
+            cycleNumber,
+            string.IsNullOrWhiteSpace(_options.Simulation.Scenario) ? "Demo" : _options.Simulation.Scenario.Trim(),
+            Math.Clamp(towerLevel, 0, 5),
+            Math.Clamp(cisternLevel, 0, 5),
+            decimal.Round(litersPerMinute, 4),
+            _pulses,
+            new Dictionary<string, bool>(_pumpStates, StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, bool>(_valveRequestedStates),
+            new Dictionary<int, bool>(_containerFullStates),
+            events.ToArray());
+
+    private void ResetContainers()
+    {
+        foreach (var containerId in _containerFullStates.Keys.ToArray())
+        {
+            _containerFullStates[containerId] = ((_cycleNumber + containerId) % 13) == 0;
+        }
+    }
+
+    private decimal CalculateFlow(bool anyPumpOn, bool anyValveOpen, bool suppressFlow)
+    {
+        if (!anyPumpOn || suppressFlow)
+        {
+            return 0m;
+        }
+
+        var baseFlow = anyValveOpen ? 12m : 6m;
+        var wave = (decimal)(Math.Sin(_cycleNumber / 2.0d) + 1.0d) * 2.5m;
+        return decimal.Round(baseFlow + wave, 4);
+    }
+
+    private bool ShouldInjectNoFlow() =>
+        IsScenarioEnabled("NoFlow")
+        && _options.Simulation.EnableNoFlowScenario
+        && _options.Simulation.InjectNoFlowEveryCycles > 0
+        && _cycleNumber % _options.Simulation.InjectNoFlowEveryCycles == 0;
+
+    private bool ShouldInjectCriticalLevel() =>
+        IsScenarioEnabled("Critical")
+        && _options.Simulation.EnableCriticalLevelScenario
+        && _options.Simulation.InjectCriticalLevelEveryCycles > 0
+        && _cycleNumber % _options.Simulation.InjectCriticalLevelEveryCycles == 0;
+
+    private bool ShouldInjectValveLock() =>
+        IsScenarioEnabled("ValveLock")
+        && _options.Simulation.EnableValveLockScenario
+        && _cycleNumber % 5 == 0;
+
+    private bool IsScenarioEnabled(string capability)
+    {
+        var scenario = string.IsNullOrWhiteSpace(_options.Simulation.Scenario)
+            ? "Demo"
+            : _options.Simulation.Scenario.Trim();
+
+        return scenario.Equals("Demo", StringComparison.OrdinalIgnoreCase)
+            || scenario.Equals("Safety", StringComparison.OrdinalIgnoreCase)
+            || scenario.Equals(capability, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsValveLockedUnsafe(int valveId) =>
+        _valveContainerMap.TryGetValue(valveId, out var containerIds)
+        && containerIds.Any(containerId => _containerFullStates.TryGetValue(containerId, out var isFull) && isFull);
+
+    private void BuildValveContainerMap(IReadOnlyList<int> valveIds, IReadOnlyList<int> containerIds)
+    {
+        if (valveIds.Count == 0)
+        {
+            return;
+        }
+
+        var orderedValves = valveIds.Order().ToArray();
+        var orderedContainers = containerIds.Order().ToArray();
+        var groupSize = Math.Max(1, (int)Math.Ceiling(orderedContainers.Length / (double)orderedValves.Length));
+
+        for (var index = 0; index < orderedValves.Length; index++)
+        {
+            _valveContainerMap[orderedValves[index]] = orderedContainers
+                .Skip(index * groupSize)
+                .Take(groupSize)
+                .DefaultIfEmpty(orderedContainers.LastOrDefault(index + 1))
+                .ToArray();
+        }
+    }
+
+    private static string NormalizePumpId(string pumpId)
+    {
+        var normalized = pumpId.Replace("pump_", string.Empty, StringComparison.OrdinalIgnoreCase);
+        return normalized.Equals("1", StringComparison.OrdinalIgnoreCase) || normalized.Equals("torre", StringComparison.OrdinalIgnoreCase)
+            ? "tower"
+            : normalized.Equals("2", StringComparison.OrdinalIgnoreCase) || normalized.Equals("cisterna", StringComparison.OrdinalIgnoreCase)
+                ? "cistern"
+                : normalized.ToLowerInvariant();
+    }
+
+    private static IReadOnlyList<int> ResolveValveIds(TlalocAgentOptions options)
+    {
+        var configured = options.Esp32Boards.SelectMany(board => board.ControlsValves).Where(id => id > 0).Distinct().Order().ToArray();
+        return configured.Length == 0 ? [1, 2, 3, 4] : configured;
+    }
+
+    private static IReadOnlyList<int> ResolveContainerIds(TlalocAgentOptions options)
+    {
+        var configured = options.Esp32Boards.SelectMany(board => board.ControlsContainers).Where(id => id > 0).Distinct().Order().ToArray();
+        if (configured.Length >= 16)
+        {
+            return configured;
+        }
+
+        return configured.Concat(Enumerable.Range(1, 16)).Distinct().Order().ToArray();
+    }
 }
 
 public sealed class DefaultSafetyEvaluationService(TlalocAgentOptions options) : ISafetyEvaluationService
@@ -254,6 +620,16 @@ public sealed class SensorPollingService(
 
         var faults = esp32Snapshots.Where(item => !item.IsOnline).Select(item => item.Error ?? $"{item.BoardId} is offline.").ToList();
         var warnings = new List<string>();
+        if (tower.Evaluation.HasInvalidReading)
+        {
+            faults.Add("Tower level reading is inconsistent.");
+        }
+
+        if (cistern.Evaluation.HasInvalidReading)
+        {
+            faults.Add("Cistern level reading is inconsistent.");
+        }
+
         if (tower.Evaluation.IsCritical)
         {
             warnings.Add("Tower level is critical.");
@@ -264,9 +640,20 @@ public sealed class SensorPollingService(
             warnings.Add("Cistern level is critical.");
         }
 
+        if (!cistern.Evaluation.IsCritical && cistern.Evaluation.Level >= 5)
+        {
+            warnings.Add("Cistern level is full.");
+        }
+
         if (flow.NoFlowAlert)
         {
             warnings.Add("No flow detected while pump is on.");
+            faults.Add("Pump is running without flow.");
+        }
+
+        if (valves.Any(valve => valve.IsLocked))
+        {
+            faults.Add("At least one valve is locked by container fill safety.");
         }
 
         return new SystemSnapshot(
@@ -276,7 +663,13 @@ public sealed class SensorPollingService(
             flow,
             [
                 new PumpSnapshot("tower", towerPumpOn, tower.Evaluation.IsCritical, tower.Evaluation.IsCritical ? "Tower level critical or invalid." : null),
-                new PumpSnapshot("cistern", cisternPumpOn, cistern.Evaluation.IsCritical || cistern.Evaluation.Level >= 5, cistern.Evaluation.IsCritical ? "Cistern level critical or invalid." : null)
+                new PumpSnapshot(
+                    "cistern",
+                    cisternPumpOn,
+                    cistern.Evaluation.IsCritical || cistern.Evaluation.Level >= 5,
+                    cistern.Evaluation.IsCritical
+                        ? "Cistern level critical or invalid."
+                        : cistern.Evaluation.Level >= 5 ? "Cistern level is full." : null)
             ],
             valves,
             containers,

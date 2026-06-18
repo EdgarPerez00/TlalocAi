@@ -157,11 +157,12 @@ public class RaspberryAgentTests
         backend.Enqueue(new PendingDeviceCommand(Guid.NewGuid(), CommandTargetType.Pump, "tower", AgentCommandType.Stop));
         var gpio = new SimulatedGpioState();
         var pumpControl = new PumpControlService(new SimulatedGpioOutputWriter(gpio), options);
+        var simulation = new SimulatedPlantScenarioService(options);
         var polling = new CommandPollingService(
             backend,
             new DefaultSafetyEvaluationService(options),
             pumpControl,
-            new ValveCommandService(new SimulatedEsp32Client(options), options));
+            new ValveCommandService(new SimulatedEsp32Client(options, simulation), options));
 
         await polling.ExecutePendingAsync(CreateSnapshot(), CancellationToken.None);
 
@@ -179,14 +180,107 @@ public class RaspberryAgentTests
         Assert.False(flow.NoFlowAlert);
     }
 
+    [Fact]
+    public void Simulated_Scenario_Generates_Critical_Tower_Level()
+    {
+        var options = CreateOptions();
+        options.Simulation = new SimulationOptions
+        {
+            Enabled = true,
+            Scenario = "Critical",
+            CycleSeconds = 2,
+            InjectCriticalLevelEveryCycles = 2,
+            EnableCriticalLevelScenario = true
+        };
+        var simulation = new SimulatedPlantScenarioService(options);
+
+        simulation.Advance();
+        var cycle = simulation.Advance();
+
+        Assert.Equal(1, cycle.State.TowerLevel);
+        Assert.Contains(cycle.Events, item => item.Contains("tower critical", StringComparison.OrdinalIgnoreCase));
+        Assert.True(simulation.ReadLevelSensor("tower", 0));
+        Assert.False(simulation.ReadLevelSensor("tower", 1));
+    }
+
+    [Fact]
+    public void Simulated_Scenario_Generates_Sixteen_Container_States()
+    {
+        var simulation = new SimulatedPlantScenarioService(CreateOptions());
+
+        var cycle = simulation.Advance();
+
+        Assert.Equal(16, cycle.State.ContainerFullStates.Count);
+        Assert.Contains(16, cycle.State.ContainerFullStates.Keys);
+    }
+
+    [Fact]
+    public void Simulated_Scenario_Injects_No_Flow_Event()
+    {
+        var options = CreateOptions();
+        options.Simulation = new SimulationOptions
+        {
+            Enabled = true,
+            Scenario = "NoFlow",
+            CycleSeconds = 2,
+            InjectNoFlowEveryCycles = 1,
+            EnableNoFlowScenario = true,
+            AutoTogglePumps = true
+        };
+        var simulation = new SimulatedPlantScenarioService(options);
+
+        var cycle = simulation.Advance();
+
+        Assert.True(cycle.DesiredPumpStates["tower"]);
+        Assert.Equal(0m, cycle.State.LitersPerMinute);
+        Assert.Contains(cycle.Events, item => item.Contains("no-flow", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Simulated_Esp32_Blocks_Valve_When_Associated_Container_Is_Full()
+    {
+        var options = CreateOptions();
+        options.Simulation = new SimulationOptions
+        {
+            Enabled = true,
+            Scenario = "ValveLock",
+            CycleSeconds = 2,
+            EnableValveLockScenario = true,
+            AutoToggleValves = true
+        };
+        var simulation = new SimulatedPlantScenarioService(options);
+        var client = new SimulatedEsp32Client(options, simulation);
+
+        for (var index = 0; index < 5; index++)
+        {
+            simulation.Advance();
+        }
+
+        var result = await client.SendValveCommandAsync("esp32-a", 2, AgentCommandType.Open, CancellationToken.None);
+        var snapshot = await client.GetStatusAsync("esp32-a", CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("locked", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(snapshot.Valves, valve => valve.ValveId == 2 && valve.IsLocked);
+    }
+
+    [Fact]
+    public void Calculates_No_Flow_Alert_When_Pump_Runs_Without_Pulses()
+    {
+        var flow = FlowCalculator.Calculate(100, 100, 450, TimeSpan.FromSeconds(2), pumpRunning: true, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(6));
+
+        Assert.True(flow.NoFlowAlert);
+        Assert.Equal(0m, flow.LitersPerMinute);
+    }
+
     private static TlalocAgentOptions CreateOptions() => new()
     {
         Tower = new ReservoirHardwareOptions { LevelSensorPins = [5, 6, 13, 19, 26], PumpOutputPin = 17, MinLevelToRun = 2, UnlockLevel = 3 },
         Cistern = new ReservoirHardwareOptions { LevelSensorPins = [12, 16, 20, 21, 25], PumpOutputPin = 27, MinLevelToRun = 2, MaxLevelToRun = 5, UnlockLevel = 3 },
         Esp32Boards =
         [
-            new Esp32BoardOptions { BoardId = "esp32-a", ControlsContainers = [1, 2, 3, 4], ControlsValves = [1, 2], ContainerStatusInputPinsOnRaspberry = [4, 18, 22, 24] },
-            new Esp32BoardOptions { BoardId = "esp32-b", ControlsContainers = [5, 6, 7, 8], ControlsValves = [3, 4], ContainerStatusInputPinsOnRaspberry = [10, 9, 11, 8] }
+            new Esp32BoardOptions { BoardId = "esp32-a", ControlsContainers = [1, 2, 3, 4, 5, 6, 7, 8], ControlsValves = [1, 2], ContainerStatusInputPinsOnRaspberry = [4, 18, 22, 24] },
+            new Esp32BoardOptions { BoardId = "esp32-b", ControlsContainers = [9, 10, 11, 12, 13, 14, 15, 16], ControlsValves = [3, 4], ContainerStatusInputPinsOnRaspberry = [10, 9, 11, 8] }
         ]
     };
 
@@ -212,7 +306,7 @@ public class RaspberryAgentTests
             new FlowSnapshot(0, 0, 0, false),
             [new PumpSnapshot("tower", false, false, null), new PumpSnapshot("cistern", false, false, null)],
             valves,
-            Enumerable.Range(1, 8).Select(index => new ContainerSnapshot(index, false)).ToList(),
+            Enumerable.Range(1, 16).Select(index => new ContainerSnapshot(index, false)).ToList(),
             [],
             [],
             new Dictionary<string, bool>());

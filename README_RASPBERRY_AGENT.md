@@ -108,12 +108,89 @@ If UART pins are used instead of USB serial, document TX/RX wiring and common GN
 
 ## Simulation mode
 
-The default `Agent.Mode` is `Simulation`, so the worker can run without Raspberry or ESP32 hardware. The simulated backend is used when `Backend.BaseUrl` still contains `TU_BACKEND_EN_NUBE`; otherwise the simulated GPIO and ESP32 drivers will publish to the configured backend using outbound HTTP.
+The default `Agent.Mode` is `Simulation`, so the worker can run without Raspberry or ESP32 hardware. The worker still uses the normal outbound flow:
 
-Simulation supports:
+- Heartbeat is sent by `AgentHeartbeatWorker`.
+- Telemetry is sent by `AgentTelemetryWorker` through `IBackendClient.PublishTelemetryAsync`.
+- Commands are polled and executed by `AgentCommandWorker`.
+- Local safety is still enforced by `AgentTelemetryWorker.ApplyLocalSafetyAsync`, `PumpControlService`, `ValveCommandService` and `SafetyEvaluationService`.
 
-- Full, low and empty tower/cistern input states.
-- Empty and full container states.
-- Valve lock and blocked open attempts.
-- Normal flow and no-flow safety through the flow pulse counter.
-- Backend disconnected behavior through the offline telemetry queue.
+The simulation is configured under `Simulation`:
+
+- `Simulation.Enabled`: enables simulated GPIO, flow and ESP32 state even if `Agent.Mode` is not `Simulation`.
+- `Simulation.Scenario`: `Demo`, `Safety`, `NoFlow`, `Critical` or `ValveLock`.
+- `Simulation.CycleSeconds`: simulated time used for each generated plant cycle.
+- `Simulation.InjectNoFlowEveryCycles`: injects a no-flow event every N cycles.
+- `Simulation.InjectCriticalLevelEveryCycles`: injects tower/cistern critical or full states every N cycles.
+- `Simulation.EnableNoFlowScenario`, `Simulation.EnableCriticalLevelScenario`, `Simulation.EnableCisternFullScenario`, `Simulation.EnableValveLockScenario`: enables or disables each safety scenario.
+
+Generated telemetry includes:
+
+- Tower and cistern levels between 0 and 5.
+- Variable flow in L/min and accumulated total liters.
+- Tower and cistern pump state.
+- Four valve states.
+- Sixteen container states.
+- Warnings and faults such as `No flow detected while pump is on.`, `Tower level is critical.`, `Cistern level is critical.` and valve lock reasons.
+
+When `Backend.BaseUrl` still contains `TU_BACKEND_EN_NUBE`, the worker uses `SimulatedBackendClient` for offline tests. When `Backend.BaseUrl` points to a real backend or Gateway, simulation publishes real HTTP telemetry using `X-Device-Api-Key`.
+
+### Run a dummy meter against the local Gateway
+
+1. Start the platform and frontend:
+
+```bash
+docker compose up -d --build
+```
+
+2. Open the frontend and create a dummy device from `/devices`. Use an id that matches the worker configuration, for example `dummy-meter-001`. Copy the API key returned when the device is created. The clear API key is only shown when creating the device or rotating the key.
+
+   You can also create it through the API after logging in:
+
+```bash
+curl -X POST http://localhost:5100/api/devices \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"dummy-meter-001","name":"Dummy Meter 001","description":"Simulated worker for frontend monitoring"}'
+```
+
+3. Configure `src/Agents/TlalocAi.RaspberryAgent/TlalocAi.RaspberryAgent.Worker/appsettings.Simulation.json`:
+
+```json
+{
+  "Agent": {
+    "DeviceId": "dummy-meter-001",
+    "Mode": "Simulation"
+  },
+  "Backend": {
+    "BaseUrl": "http://localhost:5100/",
+    "ApiKey": "PASTE_DEVICE_API_KEY_HERE",
+    "TelemetryIntervalSeconds": 2,
+    "HeartbeatIntervalSeconds": 10
+  },
+  "Simulation": {
+    "Enabled": true,
+    "Scenario": "Demo",
+    "CycleSeconds": 2,
+    "InjectNoFlowEveryCycles": 8,
+    "InjectCriticalLevelEveryCycles": 6
+  }
+}
+```
+
+4. Run the worker with the simulation environment:
+
+PowerShell:
+
+```powershell
+$env:DOTNET_ENVIRONMENT = "Simulation"
+dotnet run --project ./src/Agents/TlalocAi.RaspberryAgent/TlalocAi.RaspberryAgent.Worker/TlalocAi.RaspberryAgent.Worker.csproj
+```
+
+Bash:
+
+```bash
+DOTNET_ENVIRONMENT=Simulation dotnet run --project ./src/Agents/TlalocAi.RaspberryAgent/TlalocAi.RaspberryAgent.Worker/TlalocAi.RaspberryAgent.Worker.csproj
+```
+
+5. Open `/monitoring` in the frontend and select the dummy device. You should see changing levels, flow, pumps, valves, containers and safety alerts without physical hardware.
